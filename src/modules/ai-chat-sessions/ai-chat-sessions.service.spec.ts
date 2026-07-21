@@ -53,7 +53,7 @@ describe('AiChatSessionsService', () => {
     } as unknown as jest.Mocked<Repository<AiChatSession>>;
 
     aiChatMessageRepository = {
-      find: jest.fn(),
+      find: jest.fn().mockResolvedValue([]),
     } as unknown as jest.Mocked<Repository<AiChatMessage>>;
 
     aiChatRequestRepository = {
@@ -361,6 +361,7 @@ describe('AiChatSessionsService', () => {
       expect(llmIntentParser.parseUserMessage).toHaveBeenCalledWith({
         message: '쉬운 난이도로 방 만들어줘',
         gameRoomId: null,
+        priorMessages: [],
       });
       expect(requestRepo.create).toHaveBeenCalledWith(
         expect.objectContaining({
@@ -415,6 +416,72 @@ describe('AiChatSessionsService', () => {
       expect(gameRoomMissionsService.listSelectableMissionTemplates).toHaveBeenCalledWith(
         'EASY',
       );
+    });
+
+    it('passes up to five prior messages oldest-to-newest and excludes the current user message', async () => {
+      llmIntentParser.parseUserMessage.mockResolvedValue({
+        requestType: 'ROOM_CREATE',
+        payload: { desiredDifficulty: 'EASY' },
+      });
+      mockTransactions();
+
+      const priorRows = [
+        {
+          id: 'msg-6',
+          senderType: AiChatMessageSenderType.USER,
+          content: '여섯 번째(최신 prior)',
+          createdAt: new Date('2026-05-04T00:06:00Z'),
+        },
+        {
+          id: 'msg-5',
+          senderType: AiChatMessageSenderType.ASSISTANT,
+          content: '다섯 번째',
+          createdAt: new Date('2026-05-04T00:05:00Z'),
+        },
+        {
+          id: 'msg-4',
+          senderType: AiChatMessageSenderType.USER,
+          content: '네 번째',
+          createdAt: new Date('2026-05-04T00:04:00Z'),
+        },
+        {
+          id: 'msg-3',
+          senderType: AiChatMessageSenderType.ASSISTANT,
+          content: '세 번째',
+          createdAt: new Date('2026-05-04T00:03:00Z'),
+        },
+        {
+          id: 'msg-2',
+          senderType: AiChatMessageSenderType.USER,
+          content: '두 번째',
+          createdAt: new Date('2026-05-04T00:02:00Z'),
+        },
+      ] as AiChatMessage[];
+      aiChatMessageRepository.find.mockResolvedValue(priorRows);
+
+      await service.createMessage(user, sessionId, {
+        message: '쉬운 난이도로 방 만들어줘',
+      });
+
+      const findCall = (aiChatMessageRepository.find as jest.Mock).mock.calls[0][0];
+      expect(findCall).toMatchObject({
+        where: { aiChatSessionId: sessionId },
+        order: { createdAt: 'DESC' },
+        take: 5,
+      });
+      expect(findCall.where.id).toEqual(expect.objectContaining({ _type: 'not', _value: 'msg-user' }));
+
+      expect(llmIntentParser.parseUserMessage).toHaveBeenCalledWith({
+        message: '쉬운 난이도로 방 만들어줘',
+        gameRoomId: null,
+        priorMessages: [
+          { role: 'user', content: '두 번째' },
+          { role: 'assistant', content: '세 번째' },
+          { role: 'user', content: '네 번째' },
+          { role: 'assistant', content: '다섯 번째' },
+          { role: 'user', content: '여섯 번째(최신 prior)' },
+        ],
+      });
     });
 
     it('still persists chat when follow-up generation throws', async () => {
@@ -643,6 +710,7 @@ describe('AiChatSessionsService', () => {
       expect(llmIntentParser.parseUserMessage).toHaveBeenCalledWith({
         message: '표준 입력 계산기 템플릿으로 진행할게요.',
         gameRoomId: null,
+        priorMessages: [],
       });
       expect(gameRoomMissionsService.validateMissionTemplateSelection).toHaveBeenCalledWith(
         'EASY',

@@ -1,7 +1,10 @@
+import { readFileSync } from 'fs';
+import { join } from 'path';
 import { ConfigService } from '@nestjs/config';
 import { AiChatRequestType } from '../../shared/enums/ai-chat.enum';
 import type { PromptTemplateService } from '../../modules/prompt-template/prompt-template.service';
 import { PROMPT_TEMPLATE_KEY } from '../../modules/prompt-template/constants/prompt-template-key.constants';
+import type { LlmChatCompletionsClientPort } from './llm-chat-completions.port';
 import { LlmFollowUpService } from './llm-follow-up.service';
 
 describe('LlmFollowUpService', () => {
@@ -15,16 +18,32 @@ describe('LlmFollowUpService', () => {
   } as unknown as ConfigService;
 
   let promptTemplateService: jest.Mocked<Pick<PromptTemplateService, 'renderTemplate'>>;
+  let chatCompletionsClient: jest.Mocked<LlmChatCompletionsClientPort>;
   let service: LlmFollowUpService;
 
   beforeEach(() => {
+    (configService.get as jest.Mock).mockImplementation((key: string) => {
+      if (key === 'llm.apiKey') {
+        return undefined;
+      }
+      return undefined;
+    });
     promptTemplateService = {
       renderTemplate: jest.fn(),
+    };
+    chatCompletionsClient = {
+      createCompletion: jest.fn(),
     };
     service = new LlmFollowUpService(
       configService,
       promptTemplateService as unknown as PromptTemplateService,
+      chatCompletionsClient,
     );
+  });
+
+  it('has no private Chat Completions fetch implementation', () => {
+    const source = readFileSync(join(__dirname, 'llm-follow-up.service.ts'), 'utf8');
+    expect(source).not.toMatch(/\bfetch\s*\(/);
   });
 
   it('uses static fallback when template is missing', async () => {
@@ -41,6 +60,7 @@ describe('LlmFollowUpService', () => {
     expect(result.followUpSource).toBe('static_fallback');
     expect(result.content).toContain('EASY');
     expect(result.templateKey).toBeNull();
+    expect(chatCompletionsClient.createCompletion).not.toHaveBeenCalled();
   });
 
   it('uses static fallback when template renders but LLM key is absent', async () => {
@@ -57,6 +77,61 @@ describe('LlmFollowUpService', () => {
     expect(result.followUpSource).toBe('static_fallback');
     expect(result.templateKey).toBe(PROMPT_TEMPLATE_KEY.CHAT_FOLLOWUP_USER_INVITE);
     expect(result.content).toContain('코딩고수');
+    expect(chatCompletionsClient.createCompletion).not.toHaveBeenCalled();
+  });
+
+  it('routes follow-up through shared client without responseFormat', async () => {
+    (configService.get as jest.Mock).mockImplementation((key: string) => {
+      if (key === 'llm.apiKey') {
+        return 'test-key';
+      }
+      if (key === 'llm.model') {
+        return 'gpt-test';
+      }
+      return undefined;
+    });
+    promptTemplateService.renderTemplate.mockReturnValue('Follow-up system prompt');
+    chatCompletionsClient.createCompletion.mockResolvedValue({
+      content: '게임을 곧 시작합니다.',
+    });
+
+    const result = await service.generateCommandFollowUp({
+      command: { requestType: AiChatRequestType.GAME_START },
+      userMessage: '게임 시작해줘',
+    });
+
+    expect(chatCompletionsClient.createCompletion).toHaveBeenCalledWith({
+      model: 'gpt-test',
+      temperature: 0.3,
+      messages: [
+        { role: 'system', content: 'Follow-up system prompt' },
+        { role: 'user', content: '게임 시작해줘' },
+      ],
+    });
+    expect(result.followUpSource).toBe('llm');
+    expect(result.content).toBe('게임을 곧 시작합니다.');
+  });
+
+  it('uses static fallback when shared client fails', async () => {
+    (configService.get as jest.Mock).mockImplementation((key: string) => {
+      if (key === 'llm.apiKey') {
+        return 'test-key';
+      }
+      if (key === 'llm.model') {
+        return 'gpt-test';
+      }
+      return undefined;
+    });
+    promptTemplateService.renderTemplate.mockReturnValue('Follow-up system prompt');
+    chatCompletionsClient.createCompletion.mockRejectedValue(new Error('LLM down'));
+
+    const result = await service.generateCommandFollowUp({
+      command: { requestType: AiChatRequestType.GAME_START },
+      userMessage: '게임 시작해줘',
+    });
+
+    expect(result.followUpSource).toBe('static_fallback');
+    expect(result.content).toBe('게임 시작 요청을 이해했어요.');
   });
 
   it('does not expose unsafe assistantHint in static fallback when LLM is blocked', async () => {
@@ -66,21 +141,15 @@ describe('LlmFollowUpService', () => {
       if (key === 'llm.apiKey') {
         return 'test-key';
       }
-      if (key === 'llm.baseUrl') {
-        return 'https://api.example.com/v1';
-      }
       if (key === 'llm.model') {
         return 'gpt-test';
       }
       return undefined;
     });
 
-    global.fetch = jest.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        choices: [{ message: { content: 'Bearer sk-secret1234567890 leaked' } }],
-      }),
-    }) as typeof fetch;
+    chatCompletionsClient.createCompletion.mockResolvedValue({
+      content: 'Bearer sk-secret1234567890 leaked',
+    });
 
     const result = await service.generateCommandFollowUp({
       command: { requestType: AiChatRequestType.GAME_START },
@@ -95,20 +164,9 @@ describe('LlmFollowUpService', () => {
   });
 
   it('uses static fallback when LLM returns secret-like content', async () => {
-    const fetchMock = jest.fn().mockResolvedValue({
-      ok: true,
-      json: async () => ({
-        choices: [{ message: { content: 'Bearer sk-secret1234567890 leaked' } }],
-      }),
-    });
-    global.fetch = fetchMock as typeof fetch;
-
     (configService.get as jest.Mock).mockImplementation((key: string) => {
       if (key === 'llm.apiKey') {
         return 'test-key';
-      }
-      if (key === 'llm.baseUrl') {
-        return 'https://api.example.com/v1';
       }
       if (key === 'llm.model') {
         return 'gpt-test';
@@ -117,6 +175,9 @@ describe('LlmFollowUpService', () => {
     });
 
     promptTemplateService.renderTemplate.mockReturnValue('Follow-up system prompt');
+    chatCompletionsClient.createCompletion.mockResolvedValue({
+      content: 'Bearer sk-secret1234567890 leaked',
+    });
 
     const result = await service.generateCommandFollowUp({
       command: { requestType: AiChatRequestType.GAME_START },
@@ -124,7 +185,7 @@ describe('LlmFollowUpService', () => {
     });
 
     expect(result.followUpSource).toBe('static_fallback');
-    expect(fetchMock).toHaveBeenCalled();
+    expect(chatCompletionsClient.createCompletion).toHaveBeenCalled();
   });
 
   it('resolves room summary template when mission and difficulty are both present', () => {
