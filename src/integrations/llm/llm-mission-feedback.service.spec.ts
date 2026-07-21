@@ -157,6 +157,8 @@ describe('LlmMissionFeedbackService', () => {
       feedbackMessage: '테스트 케이스 실패 원인을 로그에서 확인해 보세요.',
       feedbackSource: 'llm',
       templateKey: PROMPT_TEMPLATE_KEY.MISSION_FEEDBACK,
+      aiGameRequestId: 'request-1',
+      aiGameSessionId: 'session-1',
     });
     expect(result).not.toHaveProperty('judgeStatus');
     expect(aiGameSessionsService.completeRequest).toHaveBeenCalledWith('request-1', {
@@ -180,6 +182,8 @@ describe('LlmMissionFeedbackService', () => {
       feedbackMessage: '현재 미션 단계를 통과했습니다.',
       feedbackSource: 'static_fallback',
       templateKey: PROMPT_TEMPLATE_KEY.MISSION_FEEDBACK,
+      aiGameRequestId: 'request-1',
+      aiGameSessionId: 'session-1',
     });
     expect(aiGameSessionsService.failRequest).toHaveBeenCalledWith('request-1', {
       reason: 'unsafe_or_empty_output',
@@ -200,6 +204,8 @@ describe('LlmMissionFeedbackService', () => {
       feedbackMessage: '런타임 또는 판정 처리 오류가 발생했습니다.',
       feedbackSource: 'static_fallback',
       templateKey: PROMPT_TEMPLATE_KEY.MISSION_FEEDBACK,
+      aiGameRequestId: 'request-1',
+      aiGameSessionId: 'session-1',
     });
     expect(aiGameSessionsService.failRequest).toHaveBeenCalledWith('request-1', {
       reason: 'api_failure',

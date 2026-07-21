@@ -47,9 +47,11 @@ export class LlmMissionFeedbackService implements LlmMissionFeedbackGeneratorPor
     const requestPayload = this.buildRequestPayload(input);
 
     let requestId: string | null = null;
+    let sessionId: string | null = null;
 
     try {
       const session = await this.aiGameSessionsService.ensureActiveSession(input.gameRoomId);
+      sessionId = session.id;
       const request = await this.aiGameSessionsService.startRequest({
         aiGameSessionId: session.id,
         requestType: AiGameRequestType.JUDGE,
@@ -69,7 +71,7 @@ export class LlmMissionFeedbackService implements LlmMissionFeedbackGeneratorPor
           reason: 'template_render_failed',
           feedbackMessage: staticFallback,
         });
-        return this.toStaticResult(staticFallback, null);
+        return this.toStaticResult(staticFallback, null, requestId, sessionId);
       }
 
       const apiKey = this.configService.get<string>('llm.apiKey');
@@ -78,7 +80,7 @@ export class LlmMissionFeedbackService implements LlmMissionFeedbackGeneratorPor
           reason: 'missing_api_key',
           feedbackMessage: staticFallback,
         });
-        return this.toStaticResult(staticFallback, templateKey);
+        return this.toStaticResult(staticFallback, templateKey, requestId, sessionId);
       }
 
       try {
@@ -89,7 +91,7 @@ export class LlmMissionFeedbackService implements LlmMissionFeedbackGeneratorPor
             reason: 'unsafe_or_empty_output',
             feedbackMessage: staticFallback,
           });
-          return this.toStaticResult(staticFallback, templateKey);
+          return this.toStaticResult(staticFallback, templateKey, requestId, sessionId);
         }
 
         const completed = await this.tryCompleteRequest(requestId, {
@@ -101,13 +103,15 @@ export class LlmMissionFeedbackService implements LlmMissionFeedbackGeneratorPor
             reason: 'persistence_failure',
             feedbackMessage: staticFallback,
           });
-          return this.toStaticResult(staticFallback, templateKey);
+          return this.toStaticResult(staticFallback, templateKey, requestId, sessionId);
         }
 
         return {
           feedbackMessage: sanitized,
           feedbackSource: 'llm',
           templateKey,
+          aiGameRequestId: requestId,
+          aiGameSessionId: sessionId,
         };
       } catch (error) {
         this.logger.warn('LLM mission feedback failed; using static fallback');
@@ -116,7 +120,7 @@ export class LlmMissionFeedbackService implements LlmMissionFeedbackGeneratorPor
           error: error instanceof Error ? error.message : 'unknown_error',
           feedbackMessage: staticFallback,
         });
-        return this.toStaticResult(staticFallback, templateKey);
+        return this.toStaticResult(staticFallback, templateKey, requestId, sessionId);
       }
     } catch {
       this.logger.warn('AI game persistence failed during mission feedback; using static fallback');
@@ -126,7 +130,7 @@ export class LlmMissionFeedbackService implements LlmMissionFeedbackGeneratorPor
           feedbackMessage: staticFallback,
         });
       }
-      return this.toStaticResult(staticFallback, null);
+      return this.toStaticResult(staticFallback, null, requestId, sessionId);
     }
   }
 
@@ -167,11 +171,15 @@ export class LlmMissionFeedbackService implements LlmMissionFeedbackGeneratorPor
   private toStaticResult(
     feedbackMessage: string,
     templateKey: string | null,
+    aiGameRequestId: string | null = null,
+    aiGameSessionId: string | null = null,
   ): LlmMissionFeedbackResult {
     return {
       feedbackMessage,
       feedbackSource: 'static_fallback',
       templateKey,
+      aiGameRequestId,
+      aiGameSessionId,
     };
   }
 

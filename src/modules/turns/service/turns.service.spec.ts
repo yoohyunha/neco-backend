@@ -11,9 +11,13 @@ import { GameRoomMissionsService } from '@modules/game-room-missions/service/gam
 import { GameRoomParticipantEntity } from '@modules/game-room-participants/entity/game-room-participant.entity';
 import { GameRoomEntity } from '@modules/game-rooms/entity/game-room.entity';
 import { MissionResultsService } from '@modules/mission-results/service/mission-results.service';
+import type { LlmMissionFeedbackGeneratorPort } from '@integrations/llm/llm-mission-feedback.port';
+import type { AiGameSessionsService } from '@modules/ai-game-sessions/ai-game-sessions.service';
 import {
   AiChatSessionStatus,
   AiGameSessionStatus,
+  AiRealtimeDeliveryStatus,
+  AiRealtimeEventType,
   ExecutionStatus,
   GameRoomMissionStepStatus,
   GameRoomParticipantMembershipStatus,
@@ -153,6 +157,23 @@ describe('TurnsService', () => {
       gameRoomMissionsService as unknown as GameRoomMissionsService,
       executionsService as unknown as ExecutionsService,
       missionResultsService as unknown as MissionResultsService,
+      {
+        generateMissionFeedback: jest.fn().mockImplementation(async (input) => ({
+          feedbackMessage:
+            input.judgeStatus === 'PASSED'
+              ? '현재 미션 단계를 통과했습니다.'
+              : input.judgeStatus === 'FAILED'
+                ? '현재 미션 단계를 통과하지 못했습니다.'
+                : '런타임 또는 판정 처리 오류가 발생했습니다.',
+          feedbackSource: 'static_fallback',
+          templateKey: null,
+          aiGameRequestId: null,
+          aiGameSessionId: null,
+        })),
+      },
+      {
+        appendRealtimeEvent: jest.fn().mockResolvedValue({ id: 'event-1' }),
+      } as never
     );
 
     const result = await service.submitTurn({
@@ -324,6 +345,23 @@ describe('TurnsService', () => {
       gameRoomMissionsService as unknown as GameRoomMissionsService,
       executionsService as unknown as ExecutionsService,
       missionResultsService as unknown as MissionResultsService,
+      {
+        generateMissionFeedback: jest.fn().mockImplementation(async (input) => ({
+          feedbackMessage:
+            input.judgeStatus === 'PASSED'
+              ? '현재 미션 단계를 통과했습니다.'
+              : input.judgeStatus === 'FAILED'
+                ? '현재 미션 단계를 통과하지 못했습니다.'
+                : '런타임 또는 판정 처리 오류가 발생했습니다.',
+          feedbackSource: 'static_fallback',
+          templateKey: null,
+          aiGameRequestId: null,
+          aiGameSessionId: null,
+        })),
+      },
+      {
+        appendRealtimeEvent: jest.fn().mockResolvedValue({ id: 'event-1' }),
+      } as never
     );
 
     const result = await service.timeoutTurn({
@@ -415,6 +453,23 @@ describe('TurnsService', () => {
       {} as GameRoomMissionsService,
       {} as ExecutionsService,
       {} as MissionResultsService,
+      {
+        generateMissionFeedback: jest.fn().mockImplementation(async (input) => ({
+          feedbackMessage:
+            input.judgeStatus === 'PASSED'
+              ? '현재 미션 단계를 통과했습니다.'
+              : input.judgeStatus === 'FAILED'
+                ? '현재 미션 단계를 통과하지 못했습니다.'
+                : '런타임 또는 판정 처리 오류가 발생했습니다.',
+          feedbackSource: 'static_fallback',
+          templateKey: null,
+          aiGameRequestId: null,
+          aiGameSessionId: null,
+        })),
+      },
+      {
+        appendRealtimeEvent: jest.fn().mockResolvedValue({ id: 'event-1' }),
+      } as never
     );
 
     await expect(
@@ -454,6 +509,23 @@ describe('TurnsService', () => {
       {} as GameRoomMissionsService,
       {} as ExecutionsService,
       {} as MissionResultsService,
+      {
+        generateMissionFeedback: jest.fn().mockImplementation(async (input) => ({
+          feedbackMessage:
+            input.judgeStatus === 'PASSED'
+              ? '현재 미션 단계를 통과했습니다.'
+              : input.judgeStatus === 'FAILED'
+                ? '현재 미션 단계를 통과하지 못했습니다.'
+                : '런타임 또는 판정 처리 오류가 발생했습니다.',
+          feedbackSource: 'static_fallback',
+          templateKey: null,
+          aiGameRequestId: null,
+          aiGameSessionId: null,
+        })),
+      },
+      {
+        appendRealtimeEvent: jest.fn().mockResolvedValue({ id: 'event-1' }),
+      } as never
     );
 
     await expect(
@@ -521,6 +593,23 @@ describe('TurnsService', () => {
       gameRoomMissionsService as unknown as GameRoomMissionsService,
       executionsService as unknown as ExecutionsService,
       missionResultsService as unknown as MissionResultsService,
+      {
+        generateMissionFeedback: jest.fn().mockImplementation(async (input) => ({
+          feedbackMessage:
+            input.judgeStatus === 'PASSED'
+              ? '현재 미션 단계를 통과했습니다.'
+              : input.judgeStatus === 'FAILED'
+                ? '현재 미션 단계를 통과하지 못했습니다.'
+                : '런타임 또는 판정 처리 오류가 발생했습니다.',
+          feedbackSource: 'static_fallback',
+          templateKey: null,
+          aiGameRequestId: null,
+          aiGameSessionId: null,
+        })),
+      },
+      {
+        appendRealtimeEvent: jest.fn().mockResolvedValue({ id: 'event-1' }),
+      } as never
     );
 
     const result = await service.timeoutTurn({
@@ -599,6 +688,23 @@ describe('TurnsService', () => {
       gameRoomMissionsService as unknown as GameRoomMissionsService,
       executionsService as unknown as ExecutionsService,
       missionResultsService as unknown as MissionResultsService,
+      {
+        generateMissionFeedback: jest.fn().mockImplementation(async (input) => ({
+          feedbackMessage:
+            input.judgeStatus === 'PASSED'
+              ? '현재 미션 단계를 통과했습니다.'
+              : input.judgeStatus === 'FAILED'
+                ? '현재 미션 단계를 통과하지 못했습니다.'
+                : '런타임 또는 판정 처리 오류가 발생했습니다.',
+          feedbackSource: 'static_fallback',
+          templateKey: null,
+          aiGameRequestId: null,
+          aiGameSessionId: null,
+        })),
+      },
+      {
+        appendRealtimeEvent: jest.fn().mockResolvedValue({ id: 'event-1' }),
+      } as never
     );
 
     const result = await service.timeoutTurn({
@@ -687,6 +793,23 @@ describe('TurnsService', () => {
       gameRoomMissionsService as unknown as GameRoomMissionsService,
       executionsService as unknown as ExecutionsService,
       missionResultsService as unknown as MissionResultsService,
+      {
+        generateMissionFeedback: jest.fn().mockImplementation(async (input) => ({
+          feedbackMessage:
+            input.judgeStatus === 'PASSED'
+              ? '현재 미션 단계를 통과했습니다.'
+              : input.judgeStatus === 'FAILED'
+                ? '현재 미션 단계를 통과하지 못했습니다.'
+                : '런타임 또는 판정 처리 오류가 발생했습니다.',
+          feedbackSource: 'static_fallback',
+          templateKey: null,
+          aiGameRequestId: null,
+          aiGameSessionId: null,
+        })),
+      },
+      {
+        appendRealtimeEvent: jest.fn().mockResolvedValue({ id: 'event-1' }),
+      } as never
     );
 
     const result = await service.timeoutTurn({
@@ -774,6 +897,23 @@ describe('TurnsService', () => {
       gameRoomMissionsService as unknown as GameRoomMissionsService,
       executionsService as unknown as ExecutionsService,
       missionResultsService as unknown as MissionResultsService,
+      {
+        generateMissionFeedback: jest.fn().mockImplementation(async (input) => ({
+          feedbackMessage:
+            input.judgeStatus === 'PASSED'
+              ? '현재 미션 단계를 통과했습니다.'
+              : input.judgeStatus === 'FAILED'
+                ? '현재 미션 단계를 통과하지 못했습니다.'
+                : '런타임 또는 판정 처리 오류가 발생했습니다.',
+          feedbackSource: 'static_fallback',
+          templateKey: null,
+          aiGameRequestId: null,
+          aiGameSessionId: null,
+        })),
+      },
+      {
+        appendRealtimeEvent: jest.fn().mockResolvedValue({ id: 'event-1' }),
+      } as never
     );
 
     const result = await service.submitTurn({
@@ -885,6 +1025,23 @@ describe('TurnsService', () => {
       gameRoomMissionsService as unknown as GameRoomMissionsService,
       executionsService as unknown as ExecutionsService,
       missionResultsService as unknown as MissionResultsService,
+      {
+        generateMissionFeedback: jest.fn().mockImplementation(async (input) => ({
+          feedbackMessage:
+            input.judgeStatus === 'PASSED'
+              ? '현재 미션 단계를 통과했습니다.'
+              : input.judgeStatus === 'FAILED'
+                ? '현재 미션 단계를 통과하지 못했습니다.'
+                : '런타임 또는 판정 처리 오류가 발생했습니다.',
+          feedbackSource: 'static_fallback',
+          templateKey: null,
+          aiGameRequestId: null,
+          aiGameSessionId: null,
+        })),
+      },
+      {
+        appendRealtimeEvent: jest.fn().mockResolvedValue({ id: 'event-1' }),
+      } as never
     );
 
     await service.submitTurn({
@@ -995,6 +1152,23 @@ describe('TurnsService', () => {
       gameRoomMissionsService as unknown as GameRoomMissionsService,
       executionsService as unknown as ExecutionsService,
       missionResultsService as unknown as MissionResultsService,
+      {
+        generateMissionFeedback: jest.fn().mockImplementation(async (input) => ({
+          feedbackMessage:
+            input.judgeStatus === 'PASSED'
+              ? '현재 미션 단계를 통과했습니다.'
+              : input.judgeStatus === 'FAILED'
+                ? '현재 미션 단계를 통과하지 못했습니다.'
+                : '런타임 또는 판정 처리 오류가 발생했습니다.',
+          feedbackSource: 'static_fallback',
+          templateKey: null,
+          aiGameRequestId: null,
+          aiGameSessionId: null,
+        })),
+      },
+      {
+        appendRealtimeEvent: jest.fn().mockResolvedValue({ id: 'event-1' }),
+      } as never
     );
 
     const result = await service.submitTurn({
@@ -1116,6 +1290,23 @@ describe('TurnsService', () => {
       gameRoomMissionsService as unknown as GameRoomMissionsService,
       executionsService as unknown as ExecutionsService,
       missionResultsService as unknown as MissionResultsService,
+      {
+        generateMissionFeedback: jest.fn().mockImplementation(async (input) => ({
+          feedbackMessage:
+            input.judgeStatus === 'PASSED'
+              ? '현재 미션 단계를 통과했습니다.'
+              : input.judgeStatus === 'FAILED'
+                ? '현재 미션 단계를 통과하지 못했습니다.'
+                : '런타임 또는 판정 처리 오류가 발생했습니다.',
+          feedbackSource: 'static_fallback',
+          templateKey: null,
+          aiGameRequestId: null,
+          aiGameSessionId: null,
+        })),
+      },
+      {
+        appendRealtimeEvent: jest.fn().mockResolvedValue({ id: 'event-1' }),
+      } as never
     );
 
     const result = await service.submitTurn({
@@ -1233,6 +1424,23 @@ describe('TurnsService', () => {
       gameRoomMissionsService as unknown as GameRoomMissionsService,
       executionsService as unknown as ExecutionsService,
       missionResultsService as unknown as MissionResultsService,
+      {
+        generateMissionFeedback: jest.fn().mockImplementation(async (input) => ({
+          feedbackMessage:
+            input.judgeStatus === 'PASSED'
+              ? '현재 미션 단계를 통과했습니다.'
+              : input.judgeStatus === 'FAILED'
+                ? '현재 미션 단계를 통과하지 못했습니다.'
+                : '런타임 또는 판정 처리 오류가 발생했습니다.',
+          feedbackSource: 'static_fallback',
+          templateKey: null,
+          aiGameRequestId: null,
+          aiGameSessionId: null,
+        })),
+      },
+      {
+        appendRealtimeEvent: jest.fn().mockResolvedValue({ id: 'event-1' }),
+      } as never
     );
 
     const result = await service.submitTurn({
@@ -1359,6 +1567,23 @@ describe('TurnsService', () => {
       gameRoomMissionsService as unknown as GameRoomMissionsService,
       executionsService as unknown as ExecutionsService,
       missionResultsService as unknown as MissionResultsService,
+      {
+        generateMissionFeedback: jest.fn().mockImplementation(async (input) => ({
+          feedbackMessage:
+            input.judgeStatus === 'PASSED'
+              ? '현재 미션 단계를 통과했습니다.'
+              : input.judgeStatus === 'FAILED'
+                ? '현재 미션 단계를 통과하지 못했습니다.'
+                : '런타임 또는 판정 처리 오류가 발생했습니다.',
+          feedbackSource: 'static_fallback',
+          templateKey: null,
+          aiGameRequestId: null,
+          aiGameSessionId: null,
+        })),
+      },
+      {
+        appendRealtimeEvent: jest.fn().mockResolvedValue({ id: 'event-1' }),
+      } as never
     );
 
     await service.submitTurn({
@@ -1465,6 +1690,23 @@ describe('TurnsService', () => {
       gameRoomMissionsService as unknown as GameRoomMissionsService,
       executionsService as unknown as ExecutionsService,
       missionResultsService as unknown as MissionResultsService,
+      {
+        generateMissionFeedback: jest.fn().mockImplementation(async (input) => ({
+          feedbackMessage:
+            input.judgeStatus === 'PASSED'
+              ? '현재 미션 단계를 통과했습니다.'
+              : input.judgeStatus === 'FAILED'
+                ? '현재 미션 단계를 통과하지 못했습니다.'
+                : '런타임 또는 판정 처리 오류가 발생했습니다.',
+          feedbackSource: 'static_fallback',
+          templateKey: null,
+          aiGameRequestId: null,
+          aiGameSessionId: null,
+        })),
+      },
+      {
+        appendRealtimeEvent: jest.fn().mockResolvedValue({ id: 'event-1' }),
+      } as never
     );
 
     await service.submitTurn({
@@ -1499,6 +1741,555 @@ describe('TurnsService', () => {
         }),
       }),
     );
+  });
+
+  it('replaces turn-evaluated feedbackMessage with LLM text and persists MISSION_FEEDBACK SENT', async () => {
+    const room = createRoom();
+    const mission = createMission();
+    const currentStep = createCurrentStep();
+    mission.steps = [
+      currentStep,
+      {
+        ...currentStep,
+        id: 'step-2',
+        missionTemplateStepId: 'template-step-2',
+        stepOrder: 2,
+        status: GameRoomMissionStepStatus.READY,
+        missionTemplateStep: {
+          ...currentStep.missionTemplateStep,
+          id: 'template-step-2',
+          stepOrder: 2,
+          title: 'Compute result',
+          description: 'Calculate the final answer.',
+        },
+      },
+    ];
+    const turn = createTurn();
+    const participants = createParticipants();
+    const snapshots: TurnSnapshotEntity[] = [];
+    const turns = [turn];
+    const manager = createManager({
+      room,
+      mission,
+      currentStep,
+      turns,
+      participants,
+      snapshots,
+    });
+    const dataSource = {
+      transaction: jest.fn(async (callback: (manager: EntityManager) => unknown) =>
+        callback(manager as unknown as EntityManager),
+      ),
+    } as unknown as DataSource;
+    const gameRoomMissionsService: jest.Mocked<
+      Pick<
+        GameRoomMissionsService,
+        'completeCurrentStep' | 'recordFailedAttempt' | 'transitionCurrentStepToInProgress'
+      >
+    > = {
+      completeCurrentStep: jest.fn().mockResolvedValue({
+        mission: {
+          ...mission,
+          currentStepId: 'step-2',
+        },
+        clearedStep: {
+          ...currentStep,
+          status: GameRoomMissionStepStatus.CLEARED,
+        },
+        nextStep: {
+          ...currentStep,
+          id: 'step-2',
+          stepOrder: 2,
+          status: GameRoomMissionStepStatus.READY,
+        },
+        missionFinished: false,
+      }),
+      recordFailedAttempt: jest.fn(),
+      transitionCurrentStepToInProgress: jest.fn().mockResolvedValue({
+        ...currentStep,
+        id: 'step-2',
+        missionTemplateStepId: 'template-step-2',
+        stepOrder: 2,
+        status: GameRoomMissionStepStatus.IN_PROGRESS,
+        missionTemplateStep: {
+          ...currentStep.missionTemplateStep,
+          id: 'template-step-2',
+          stepOrder: 2,
+          title: 'Compute result',
+          description: 'Calculate the final answer.',
+        },
+      }),
+    };
+    const executionsService: jest.Mocked<Pick<ExecutionsService, 'executeTurnCode'>> = {
+      executeTurnCode: jest.fn().mockResolvedValue({
+        id: 'execution-1',
+        status: ExecutionStatus.SUCCESS,
+        exitCode: 0,
+        stdout: 'ok',
+        stderr: '',
+        runtimeFailureCode: null,
+        runtimeFailureMessage: null,
+      } as ExecutionEntity),
+    };
+    const missionResultsService: jest.Mocked<
+      Pick<MissionResultsService, 'createMissionResult'>
+    > = {
+      createMissionResult: jest.fn().mockResolvedValue({} as never),
+    };
+    const missionFeedbackGenerator: jest.Mocked<LlmMissionFeedbackGeneratorPort> = {
+      generateMissionFeedback: jest.fn().mockResolvedValue({
+        feedbackMessage: 'LLM이 생성한 통과 피드백입니다.',
+        feedbackSource: 'llm',
+        templateKey: 'mission_feedback',
+        aiGameRequestId: 'request-1',
+        aiGameSessionId: 'session-1',
+      }),
+    };
+    const aiGameSessionsService: jest.Mocked<Pick<AiGameSessionsService, 'appendRealtimeEvent'>> =
+      {
+        appendRealtimeEvent: jest.fn().mockResolvedValue({ id: 'event-1' } as never),
+      };
+    const service = new TurnsService(
+      {
+        get: jest.fn().mockReturnValue(10000),
+      } as unknown as ConfigService,
+      dataSource,
+      gameRoomMissionsService as unknown as GameRoomMissionsService,
+      executionsService as unknown as ExecutionsService,
+      missionResultsService as unknown as MissionResultsService,
+      missionFeedbackGenerator,
+      aiGameSessionsService as unknown as AiGameSessionsService,
+    );
+
+    const result = await service.submitTurn({
+      gameRoomId: room.id,
+      turnId: turn.id,
+      userId: turn.playerUserId,
+      occurredAt: '2026-05-26T10:00:10+09:00',
+      files: [
+        {
+          gameRoomId: room.id,
+          turnId: turn.id,
+          userId: turn.playerUserId,
+          filePath: 'main.py',
+          content: 'print("done")\n',
+          occurredAt: '2026-05-26T10:00:00+09:00',
+        },
+      ],
+    });
+
+    expect(missionFeedbackGenerator.generateMissionFeedback).toHaveBeenCalledWith(
+      expect.objectContaining({
+        gameRoomId: room.id,
+        judgeStatus: MissionResultJudgeStatus.PASSED,
+        turnId: turn.id,
+        missionId: mission.id,
+      }),
+    );
+    expect(result.evaluatedEvent.evaluationResult.feedbackMessage).toBe(
+      'LLM이 생성한 통과 피드백입니다.',
+    );
+    expect(result.turnChangedEvent).not.toBeNull();
+    expect(aiGameSessionsService.appendRealtimeEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        aiGameRequestId: 'request-1',
+        aiGameSessionId: 'session-1',
+        gameRoomId: room.id,
+        eventType: AiRealtimeEventType.MISSION_FEEDBACK,
+        message: 'LLM이 생성한 통과 피드백입니다.',
+        deliveryStatus: AiRealtimeDeliveryStatus.SENT,
+      }),
+    );
+  });
+
+  it('keeps static feedback and completes submit when LLM generation fails', async () => {
+    const room = createRoom();
+    const mission = createMission();
+    const currentStep = createCurrentStep();
+    mission.steps = [
+      currentStep,
+      {
+        ...currentStep,
+        id: 'step-2',
+        missionTemplateStepId: 'template-step-2',
+        stepOrder: 2,
+        status: GameRoomMissionStepStatus.READY,
+        missionTemplateStep: {
+          ...currentStep.missionTemplateStep,
+          id: 'template-step-2',
+          stepOrder: 2,
+          title: 'Compute result',
+          description: 'Calculate the final answer.',
+        },
+      },
+    ];
+    const turn = createTurn();
+    const participants = createParticipants();
+    const snapshots: TurnSnapshotEntity[] = [];
+    const turns = [turn];
+    const manager = createManager({
+      room,
+      mission,
+      currentStep,
+      turns,
+      participants,
+      snapshots,
+    });
+    const dataSource = {
+      transaction: jest.fn(async (callback: (manager: EntityManager) => unknown) =>
+        callback(manager as unknown as EntityManager),
+      ),
+    } as unknown as DataSource;
+    const gameRoomMissionsService: jest.Mocked<
+      Pick<
+        GameRoomMissionsService,
+        'completeCurrentStep' | 'recordFailedAttempt' | 'transitionCurrentStepToInProgress'
+      >
+    > = {
+      completeCurrentStep: jest.fn().mockResolvedValue({
+        mission: {
+          ...mission,
+          currentStepId: 'step-2',
+        },
+        clearedStep: {
+          ...currentStep,
+          status: GameRoomMissionStepStatus.CLEARED,
+        },
+        nextStep: {
+          ...currentStep,
+          id: 'step-2',
+          stepOrder: 2,
+          status: GameRoomMissionStepStatus.READY,
+        },
+        missionFinished: false,
+      }),
+      recordFailedAttempt: jest.fn(),
+      transitionCurrentStepToInProgress: jest.fn().mockResolvedValue({
+        ...currentStep,
+        id: 'step-2',
+        missionTemplateStepId: 'template-step-2',
+        stepOrder: 2,
+        status: GameRoomMissionStepStatus.IN_PROGRESS,
+        missionTemplateStep: {
+          ...currentStep.missionTemplateStep,
+          id: 'template-step-2',
+          stepOrder: 2,
+          title: 'Compute result',
+          description: 'Calculate the final answer.',
+        },
+      }),
+    };
+    const executionsService: jest.Mocked<Pick<ExecutionsService, 'executeTurnCode'>> = {
+      executeTurnCode: jest.fn().mockResolvedValue({
+        id: 'execution-1',
+        status: ExecutionStatus.SUCCESS,
+        exitCode: 0,
+        stdout: 'ok',
+        stderr: '',
+        runtimeFailureCode: null,
+        runtimeFailureMessage: null,
+      } as ExecutionEntity),
+    };
+    const missionResultsService: jest.Mocked<
+      Pick<MissionResultsService, 'createMissionResult'>
+    > = {
+      createMissionResult: jest.fn().mockResolvedValue({} as never),
+    };
+    const missionFeedbackGenerator: jest.Mocked<LlmMissionFeedbackGeneratorPort> = {
+      generateMissionFeedback: jest.fn().mockRejectedValue(new Error('LLM unavailable')),
+    };
+    const aiGameSessionsService: jest.Mocked<Pick<AiGameSessionsService, 'appendRealtimeEvent'>> =
+      {
+        appendRealtimeEvent: jest.fn().mockResolvedValue({ id: 'event-1' } as never),
+      };
+    const service = new TurnsService(
+      {
+        get: jest.fn().mockReturnValue(10000),
+      } as unknown as ConfigService,
+      dataSource,
+      gameRoomMissionsService as unknown as GameRoomMissionsService,
+      executionsService as unknown as ExecutionsService,
+      missionResultsService as unknown as MissionResultsService,
+      missionFeedbackGenerator,
+      aiGameSessionsService as unknown as AiGameSessionsService,
+    );
+
+    const result = await service.submitTurn({
+      gameRoomId: room.id,
+      turnId: turn.id,
+      userId: turn.playerUserId,
+      occurredAt: '2026-05-26T10:00:10+09:00',
+      files: [
+        {
+          gameRoomId: room.id,
+          turnId: turn.id,
+          userId: turn.playerUserId,
+          filePath: 'main.py',
+          content: 'print("done")\n',
+          occurredAt: '2026-05-26T10:00:00+09:00',
+        },
+      ],
+    });
+
+    expect(result.evaluatedEvent.evaluationResult.feedbackMessage).toBe(
+      '현재 미션 단계를 통과했습니다.',
+    );
+    expect(result.evaluatedEvent.evaluationResult.judgeStatus).toBe(
+      MissionResultJudgeStatus.PASSED,
+    );
+    expect(result.turnChangedEvent).not.toBeNull();
+    expect(aiGameSessionsService.appendRealtimeEvent).not.toHaveBeenCalled();
+  });
+
+  it('keeps static feedback on timeout when LLM fails and still completes next-turn logic', async () => {
+    const room = createRoom();
+    const mission = createMission();
+    mission.strikeCount = 0;
+    const currentStep = createCurrentStep();
+    const turn = createTurn();
+    const participants = createParticipants();
+    const snapshots: TurnSnapshotEntity[] = [];
+    const turns = [turn];
+    const manager = createManager({
+      room,
+      mission,
+      currentStep,
+      turns,
+      participants,
+      snapshots,
+    });
+    const dataSource = {
+      transaction: jest.fn(async (callback: (manager: EntityManager) => unknown) =>
+        callback(manager as unknown as EntityManager),
+      ),
+    } as unknown as DataSource;
+    const gameRoomMissionsService: jest.Mocked<
+      Pick<
+        GameRoomMissionsService,
+        'completeCurrentStep' | 'recordFailedAttempt' | 'transitionCurrentStepToInProgress'
+      >
+    > = {
+      completeCurrentStep: jest.fn(),
+      recordFailedAttempt: jest.fn().mockResolvedValue({
+        mission: {
+          ...mission,
+          strikeCount: 1,
+        },
+        currentStep: {
+          ...currentStep,
+          status: GameRoomMissionStepStatus.IN_PROGRESS,
+        },
+        strikeLimitReached: false,
+        missionFinished: false,
+      }),
+      transitionCurrentStepToInProgress: jest.fn(),
+    };
+    const executionsService: jest.Mocked<Pick<ExecutionsService, 'executeTurnCode'>> = {
+      executeTurnCode: jest.fn().mockResolvedValue({
+        id: 'execution-1',
+        status: ExecutionStatus.TIMEOUT,
+        exitCode: null,
+        stdout: '',
+        stderr: 'timeout',
+        runtimeFailureCode: null,
+        runtimeFailureMessage: null,
+      } as ExecutionEntity),
+    };
+    const missionResultsService: jest.Mocked<
+      Pick<MissionResultsService, 'createMissionResult'>
+    > = {
+      createMissionResult: jest.fn().mockResolvedValue({} as never),
+    };
+    const missionFeedbackGenerator: jest.Mocked<LlmMissionFeedbackGeneratorPort> = {
+      generateMissionFeedback: jest.fn().mockRejectedValue(new Error('LLM unavailable')),
+    };
+    const aiGameSessionsService: jest.Mocked<Pick<AiGameSessionsService, 'appendRealtimeEvent'>> =
+      {
+        appendRealtimeEvent: jest.fn().mockRejectedValue(new Error('persist failed')),
+      };
+    const service = new TurnsService(
+      {
+        get: jest.fn().mockReturnValue(10000),
+      } as unknown as ConfigService,
+      dataSource,
+      gameRoomMissionsService as unknown as GameRoomMissionsService,
+      executionsService as unknown as ExecutionsService,
+      missionResultsService as unknown as MissionResultsService,
+      missionFeedbackGenerator,
+      aiGameSessionsService as unknown as AiGameSessionsService,
+    );
+
+    const result = await service.timeoutTurn({
+      gameRoomId: room.id,
+      turnId: turn.id,
+      userId: turn.playerUserId,
+      occurredAt: '2026-05-26T10:00:10+09:00',
+      files: [
+        {
+          gameRoomId: room.id,
+          turnId: turn.id,
+          userId: turn.playerUserId,
+          filePath: 'main.py',
+          content: 'print("timeout")\n',
+          occurredAt: '2026-05-26T10:00:00+09:00',
+        },
+      ],
+    });
+
+    expect(turn.status).toBe(TurnStatus.TIMEOUT);
+    expect(result.evaluatedEvent.evaluationResult.feedbackMessage).toBe(
+      '현재 미션 단계를 통과하지 못했습니다.',
+    );
+    expect(result.evaluatedEvent.evaluationResult.judgeStatus).toBe(
+      MissionResultJudgeStatus.FAILED,
+    );
+    expect(result.turnChangedEvent).toMatchObject({
+      previousTurnId: turn.id,
+      nextPlayerId: 'user-2',
+    });
+    expect(missionFeedbackGenerator.generateMissionFeedback).toHaveBeenCalled();
+  });
+
+  it('does not unwind judgment when MISSION_FEEDBACK persistence fails after LLM success', async () => {
+    const room = createRoom();
+    const mission = createMission();
+    const currentStep = createCurrentStep();
+    mission.steps = [
+      currentStep,
+      {
+        ...currentStep,
+        id: 'step-2',
+        missionTemplateStepId: 'template-step-2',
+        stepOrder: 2,
+        status: GameRoomMissionStepStatus.READY,
+        missionTemplateStep: {
+          ...currentStep.missionTemplateStep,
+          id: 'template-step-2',
+          stepOrder: 2,
+          title: 'Compute result',
+          description: 'Calculate the final answer.',
+        },
+      },
+    ];
+    const turn = createTurn();
+    const participants = createParticipants();
+    const snapshots: TurnSnapshotEntity[] = [];
+    const turns = [turn];
+    const manager = createManager({
+      room,
+      mission,
+      currentStep,
+      turns,
+      participants,
+      snapshots,
+    });
+    const dataSource = {
+      transaction: jest.fn(async (callback: (manager: EntityManager) => unknown) =>
+        callback(manager as unknown as EntityManager),
+      ),
+    } as unknown as DataSource;
+    const gameRoomMissionsService: jest.Mocked<
+      Pick<
+        GameRoomMissionsService,
+        'completeCurrentStep' | 'recordFailedAttempt' | 'transitionCurrentStepToInProgress'
+      >
+    > = {
+      completeCurrentStep: jest.fn().mockResolvedValue({
+        mission: {
+          ...mission,
+          currentStepId: 'step-2',
+        },
+        clearedStep: {
+          ...currentStep,
+          status: GameRoomMissionStepStatus.CLEARED,
+        },
+        nextStep: {
+          ...currentStep,
+          id: 'step-2',
+          stepOrder: 2,
+          status: GameRoomMissionStepStatus.READY,
+        },
+        missionFinished: false,
+      }),
+      recordFailedAttempt: jest.fn(),
+      transitionCurrentStepToInProgress: jest.fn().mockResolvedValue({
+        ...currentStep,
+        id: 'step-2',
+        missionTemplateStepId: 'template-step-2',
+        stepOrder: 2,
+        status: GameRoomMissionStepStatus.IN_PROGRESS,
+        missionTemplateStep: {
+          ...currentStep.missionTemplateStep,
+          id: 'template-step-2',
+          stepOrder: 2,
+          title: 'Compute result',
+          description: 'Calculate the final answer.',
+        },
+      }),
+    };
+    const executionsService: jest.Mocked<Pick<ExecutionsService, 'executeTurnCode'>> = {
+      executeTurnCode: jest.fn().mockResolvedValue({
+        id: 'execution-1',
+        status: ExecutionStatus.SUCCESS,
+        exitCode: 0,
+        stdout: 'ok',
+        stderr: '',
+        runtimeFailureCode: null,
+        runtimeFailureMessage: null,
+      } as ExecutionEntity),
+    };
+    const missionResultsService: jest.Mocked<
+      Pick<MissionResultsService, 'createMissionResult'>
+    > = {
+      createMissionResult: jest.fn().mockResolvedValue({} as never),
+    };
+    const missionFeedbackGenerator: jest.Mocked<LlmMissionFeedbackGeneratorPort> = {
+      generateMissionFeedback: jest.fn().mockResolvedValue({
+        feedbackMessage: '영속화 실패해도 이 메시지를 유지합니다.',
+        feedbackSource: 'llm',
+        templateKey: 'mission_feedback',
+        aiGameRequestId: 'request-1',
+        aiGameSessionId: 'session-1',
+      }),
+    };
+    const aiGameSessionsService: jest.Mocked<Pick<AiGameSessionsService, 'appendRealtimeEvent'>> =
+      {
+        appendRealtimeEvent: jest.fn().mockRejectedValue(new Error('db down')),
+      };
+    const service = new TurnsService(
+      {
+        get: jest.fn().mockReturnValue(10000),
+      } as unknown as ConfigService,
+      dataSource,
+      gameRoomMissionsService as unknown as GameRoomMissionsService,
+      executionsService as unknown as ExecutionsService,
+      missionResultsService as unknown as MissionResultsService,
+      missionFeedbackGenerator,
+      aiGameSessionsService as unknown as AiGameSessionsService,
+    );
+
+    const result = await service.submitTurn({
+      gameRoomId: room.id,
+      turnId: turn.id,
+      userId: turn.playerUserId,
+      occurredAt: '2026-05-26T10:00:10+09:00',
+      files: [
+        {
+          gameRoomId: room.id,
+          turnId: turn.id,
+          userId: turn.playerUserId,
+          filePath: 'main.py',
+          content: 'print("done")\n',
+          occurredAt: '2026-05-26T10:00:00+09:00',
+        },
+      ],
+    });
+
+    expect(result.evaluatedEvent.evaluationResult.feedbackMessage).toBe(
+      '영속화 실패해도 이 메시지를 유지합니다.',
+    );
+    expect(result.turnChangedEvent).not.toBeNull();
+    expect(aiGameSessionsService.appendRealtimeEvent).toHaveBeenCalled();
   });
 });
 

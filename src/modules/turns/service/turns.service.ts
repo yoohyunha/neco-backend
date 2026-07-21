@@ -1,15 +1,22 @@
 import {
   ConflictException,
   ForbiddenException,
+  Inject,
   Injectable,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { toSeoulIso } from '@common/utils/date.util';
 import { DataSource, EntityManager, Repository } from 'typeorm';
+import {
+  LLM_MISSION_FEEDBACK_GENERATOR,
+  type LlmMissionFeedbackGeneratorPort,
+} from '@integrations/llm/llm-mission-feedback.port';
 import { ExecutionsService } from '@modules/executions/service/executions.service';
 import { ExecutionEntity } from '@modules/executions/entity/execution.entity';
 import { AiChatSession } from '@modules/ai-chat-sessions/entity/ai-chat-session.entity';
+import { AiGameSessionsService } from '@modules/ai-game-sessions/ai-game-sessions.service';
 import { AiGameSession } from '@modules/ai-game-sessions/entity/ai-game-session.entity';
 import { GameRoomMissionStepEntity } from '@modules/game-room-missions/entity/game-room-mission-step.entity';
 import { GameRoomMissionEntity } from '@modules/game-room-missions/entity/game-room-mission.entity';
@@ -21,6 +28,8 @@ import { MissionResultsService } from '@modules/mission-results/service/mission-
 import {
   AiChatSessionStatus,
   AiGameSessionStatus,
+  AiRealtimeDeliveryStatus,
+  AiRealtimeEventType,
   ExecutionStatus,
   GameRoomMissionStepStatus,
   GameRoomParticipantMembershipStatus,
@@ -103,12 +112,17 @@ interface SnapshotExecutionOutcome {
 
 @Injectable()
 export class TurnsService {
+  private readonly logger = new Logger(TurnsService.name);
+
   constructor(
     private readonly configService: ConfigService,
     private readonly dataSource: DataSource,
     private readonly gameRoomMissionsService: GameRoomMissionsService,
     private readonly executionsService: ExecutionsService,
     private readonly missionResultsService: MissionResultsService,
+    @Inject(LLM_MISSION_FEEDBACK_GENERATOR)
+    private readonly missionFeedbackGenerator: LlmMissionFeedbackGeneratorPort,
+    private readonly aiGameSessionsService: AiGameSessionsService,
   ) {}
 
   async createInitialTurn(input: CreateInitialTurnInput): Promise<TurnEntity> {
@@ -168,11 +182,95 @@ export class TurnsService {
     const preparedState = await this.prepareTurnEndState(input);
     const executionOutcome = await this.executeSnapshot(preparedState);
 
-    return this.applyExecutionOutcome({
+    const lifecycle = await this.applyExecutionOutcome({
       preparedState,
       executionOutcome,
       submittedStatus: input.trigger,
     });
+    await this.enrichEvaluatedFeedbackMessage(lifecycle);
+    return lifecycle;
+  }
+
+  /**
+   * After server judgment payload is built and before callers emit turn-evaluated,
+   * synchronously enrich feedbackMessage via the mission feedback generator.
+   * Persistence of MISSION_FEEDBACK is best-effort and must never unwind judgment.
+   */
+  private async enrichEvaluatedFeedbackMessage(
+    lifecycle: TurnLifecycleResult,
+  ): Promise<void> {
+    const evaluationResult = lifecycle.evaluatedEvent.evaluationResult;
+    const judgeStatus = evaluationResult.judgeStatus as MissionResultJudgeStatus;
+    const staticFeedbackMessage = evaluationResult.feedbackMessage;
+
+    let aiGameRequestId: string | null = null;
+    let aiGameSessionId: string | null = null;
+    let feedbackMessage = staticFeedbackMessage;
+
+    try {
+      const feedback = await this.missionFeedbackGenerator.generateMissionFeedback({
+        gameRoomId: lifecycle.evaluatedEvent.gameRoomId,
+        judgeStatus,
+        turnId:
+          typeof evaluationResult.turnId === 'string' ? evaluationResult.turnId : null,
+        missionId:
+          typeof evaluationResult.missionId === 'string'
+            ? evaluationResult.missionId
+            : null,
+        stepId:
+          typeof evaluationResult.stepId === 'string' ? evaluationResult.stepId : null,
+        stepOrder:
+          typeof evaluationResult.stepOrder === 'number'
+            ? evaluationResult.stepOrder
+            : null,
+        stdout:
+          typeof evaluationResult.executionSummary?.stdout === 'string'
+            ? evaluationResult.executionSummary.stdout
+            : null,
+        stderr:
+          typeof evaluationResult.executionSummary?.stderr === 'string'
+            ? evaluationResult.executionSummary.stderr
+            : null,
+        detectedIssueSummaries: Array.isArray(evaluationResult.detectedIssues)
+          ? evaluationResult.detectedIssues.map((issue) => issue.message)
+          : [],
+      });
+      feedbackMessage = feedback.feedbackMessage;
+      aiGameRequestId = feedback.aiGameRequestId;
+      aiGameSessionId = feedback.aiGameSessionId;
+    } catch (error) {
+      this.logger.warn(
+        `Mission feedback generation failed; keeping static feedback (${error instanceof Error ? error.message : 'unknown_error'})`,
+      );
+      feedbackMessage = staticFeedbackMessage;
+    }
+
+    evaluationResult.feedbackMessage = feedbackMessage;
+
+    if (!aiGameRequestId || !aiGameSessionId) {
+      return;
+    }
+
+    try {
+      await this.aiGameSessionsService.appendRealtimeEvent({
+        aiGameRequestId,
+        aiGameSessionId,
+        gameRoomId: lifecycle.evaluatedEvent.gameRoomId,
+        eventType: AiRealtimeEventType.MISSION_FEEDBACK,
+        message: feedbackMessage,
+        deliveryStatus: AiRealtimeDeliveryStatus.SENT,
+        occurredAt: new Date(lifecycle.evaluatedEvent.occurredAt),
+        payloadJson: {
+          turnId: evaluationResult.turnId ?? null,
+          missionId: evaluationResult.missionId ?? null,
+          judgeStatus,
+        },
+      });
+    } catch (error) {
+      this.logger.warn(
+        `Failed to persist MISSION_FEEDBACK realtime event; judgment lifecycle continues (${error instanceof Error ? error.message : 'unknown_error'})`,
+      );
+    }
   }
 
   private async prepareTurnEndState(

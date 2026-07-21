@@ -20,6 +20,8 @@ export interface LlmMissionFeedbackResult {
   feedbackMessage: string;
   feedbackSource: MissionFeedbackSource;
   templateKey: string | null;
+  aiGameRequestId: string | null;
+  aiGameSessionId: string | null;
 }
 
 export interface LlmMissionFeedbackGeneratorPort {
