@@ -4,6 +4,7 @@ import { DataSource, EntityManager } from 'typeorm';
 import { ExecutionEntity } from '@modules/executions/entity/execution.entity';
 import { ExecutionsService } from '@modules/executions/service/executions.service';
 import { AiChatSession } from '@modules/ai-chat-sessions/entity/ai-chat-session.entity';
+import { AiGameSession } from '@modules/ai-game-sessions/entity/ai-game-session.entity';
 import { GameRoomMissionStepEntity } from '@modules/game-room-missions/entity/game-room-mission-step.entity';
 import { GameRoomMissionEntity } from '@modules/game-room-missions/entity/game-room-mission.entity';
 import { GameRoomMissionsService } from '@modules/game-room-missions/service/game-room-missions.service';
@@ -12,6 +13,7 @@ import { GameRoomEntity } from '@modules/game-rooms/entity/game-room.entity';
 import { MissionResultsService } from '@modules/mission-results/service/mission-results.service';
 import {
   AiChatSessionStatus,
+  AiGameSessionStatus,
   ExecutionStatus,
   GameRoomMissionStepStatus,
   GameRoomParticipantMembershipStatus,
@@ -371,6 +373,15 @@ describe('TurnsService', () => {
       },
       expect.objectContaining({
         status: AiChatSessionStatus.CLOSED,
+      }),
+    );
+    expect(manager.aiGameSessionRepository.update).toHaveBeenCalledWith(
+      {
+        gameRoomId: room.id,
+        status: AiGameSessionStatus.ACTIVE,
+      },
+      expect.objectContaining({
+        status: AiGameSessionStatus.CLOSED,
       }),
     );
   });
@@ -1148,6 +1159,15 @@ describe('TurnsService', () => {
         status: AiChatSessionStatus.CLOSED,
       }),
     );
+    expect(manager.aiGameSessionRepository.update).toHaveBeenCalledWith(
+      {
+        gameRoomId: room.id,
+        status: AiGameSessionStatus.ACTIVE,
+      },
+      expect.objectContaining({
+        status: AiGameSessionStatus.CLOSED,
+      }),
+    );
   });
 
   it('records runtime ERROR for calculator public cases without incrementing strike', async () => {
@@ -1639,9 +1659,13 @@ function createManager(input: {
   const aiChatSessionRepository = {
     update: jest.fn(),
   };
+  const aiGameSessionRepository = {
+    update: jest.fn(),
+  };
 
   return {
     aiChatSessionRepository,
+    aiGameSessionRepository,
     query: jest.fn(),
     getRepository: jest.fn((entity) => {
       if (entity === GameRoomEntity) {
@@ -1727,6 +1751,10 @@ function createManager(input: {
 
       if (entity === AiChatSession) {
         return aiChatSessionRepository;
+      }
+
+      if (entity === AiGameSession) {
+        return aiGameSessionRepository;
       }
 
       return {

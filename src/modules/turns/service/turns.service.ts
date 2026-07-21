@@ -10,6 +10,7 @@ import { DataSource, EntityManager, Repository } from 'typeorm';
 import { ExecutionsService } from '@modules/executions/service/executions.service';
 import { ExecutionEntity } from '@modules/executions/entity/execution.entity';
 import { AiChatSession } from '@modules/ai-chat-sessions/entity/ai-chat-session.entity';
+import { AiGameSession } from '@modules/ai-game-sessions/entity/ai-game-session.entity';
 import { GameRoomMissionStepEntity } from '@modules/game-room-missions/entity/game-room-mission-step.entity';
 import { GameRoomMissionEntity } from '@modules/game-room-missions/entity/game-room-mission.entity';
 import { GameRoomMissionsService } from '@modules/game-room-missions/service/game-room-missions.service';
@@ -19,6 +20,7 @@ import { buildTurnEvaluationResultPayload } from '@modules/mission-results/build
 import { MissionResultsService } from '@modules/mission-results/service/mission-results.service';
 import {
   AiChatSessionStatus,
+  AiGameSessionStatus,
   ExecutionStatus,
   GameRoomMissionStepStatus,
   GameRoomParticipantMembershipStatus,
@@ -424,6 +426,7 @@ export class TurnsService {
       } else if (missionFinished) {
         room.status = GameRoomStatus.FINISHED;
         await this.closeActiveAiChatSessionsForRoom(input.manager, room.id, input.occurredAt);
+        await this.closeActiveAiGameSessionsForRoom(input.manager, room.id, input.occurredAt);
         room = await roomRepository.save(room);
       }
     } else if (judgeStatus === MissionResultJudgeStatus.FAILED) {
@@ -449,6 +452,7 @@ export class TurnsService {
       } else if (missionFinished) {
         room.status = GameRoomStatus.FINISHED;
         await this.closeActiveAiChatSessionsForRoom(input.manager, room.id, input.occurredAt);
+        await this.closeActiveAiGameSessionsForRoom(input.manager, room.id, input.occurredAt);
         room = await roomRepository.save(room);
       }
     } else {
@@ -544,6 +548,23 @@ export class TurnsService {
       },
       {
         status: AiChatSessionStatus.CLOSED,
+        closedAt: occurredAt,
+      },
+    );
+  }
+
+  private async closeActiveAiGameSessionsForRoom(
+    manager: EntityManager,
+    gameRoomId: string,
+    occurredAt: Date,
+  ): Promise<void> {
+    await manager.getRepository(AiGameSession).update(
+      {
+        gameRoomId,
+        status: AiGameSessionStatus.ACTIVE,
+      },
+      {
+        status: AiGameSessionStatus.CLOSED,
         closedAt: occurredAt,
       },
     );

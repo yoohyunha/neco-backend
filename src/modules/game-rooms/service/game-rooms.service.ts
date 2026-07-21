@@ -9,12 +9,14 @@ import { GameRoomMissionsService } from '@modules/game-room-missions/service/gam
 import { GameRoomParticipantEntity } from '@modules/game-room-participants/entity/game-room-participant.entity';
 import { TurnsService } from '@modules/turns/service/turns.service';
 import { AiChatSession } from '@modules/ai-chat-sessions/entity/ai-chat-session.entity';
+import { AiGameSession } from '@modules/ai-game-sessions/entity/ai-game-session.entity';
 import { TurnEntity } from '@modules/turns/entity/turn.entity';
 import { GameRoomMissionEntity } from '@modules/game-room-missions/entity/game-room-mission.entity';
 import { GameRoomMissionStepEntity } from '@modules/game-room-missions/entity/game-room-mission-step.entity';
 import { GameRoomEntity } from '../entity/game-room.entity';
 import {
   AiChatSessionStatus,
+  AiGameSessionStatus,
   GameRoomParticipantMembershipStatus,
   GameRoomParticipantRole,
   GameRoomStatus,
@@ -140,7 +142,9 @@ export class GameRoomsService {
       }
 
       room.status = GameRoomStatus.FINISHED;
-      await this.closeActiveAiChatSessionsForRoom(manager, gameRoomId);
+      const closedAt = new Date();
+      await this.closeActiveAiChatSessionsForRoom(manager, gameRoomId, closedAt);
+      await this.closeActiveAiGameSessionsForRoom(manager, gameRoomId, closedAt);
       const savedRoom = await roomRepository.save(room);
 
       return {
@@ -270,6 +274,7 @@ export class GameRoomsService {
   private async closeActiveAiChatSessionsForRoom(
     manager: EntityManager,
     gameRoomId: string,
+    closedAt: Date,
   ): Promise<void> {
     await manager.getRepository(AiChatSession).update(
       {
@@ -278,7 +283,24 @@ export class GameRoomsService {
       },
       {
         status: AiChatSessionStatus.CLOSED,
-        closedAt: new Date(),
+        closedAt,
+      },
+    );
+  }
+
+  private async closeActiveAiGameSessionsForRoom(
+    manager: EntityManager,
+    gameRoomId: string,
+    closedAt: Date,
+  ): Promise<void> {
+    await manager.getRepository(AiGameSession).update(
+      {
+        gameRoomId,
+        status: AiGameSessionStatus.ACTIVE,
+      },
+      {
+        status: AiGameSessionStatus.CLOSED,
+        closedAt,
       },
     );
   }

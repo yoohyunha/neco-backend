@@ -5,6 +5,7 @@ import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { DatabaseModule } from './database/database.module';
 import { JwtIntegrationModule } from './integrations/jwt/jwt.module';
 import { AiChatSessionsModule } from './modules/ai-chat-sessions/ai-chat-sessions.module';
+import { AiGameSessionsModule } from './modules/ai-game-sessions/ai-game-sessions.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { PromptTemplateModule } from './modules/prompt-template/prompt-template.module';
 import appConfig from './common/config/app.config';
@@ -29,6 +30,7 @@ import { RealtimeModule } from './modules/realtime/realtime.module';
     AuthModule,
     PromptTemplateModule,
     AiChatSessionsModule,
+    AiGameSessionsModule,
     GameRoomsModule,
     GameRoomParticipantsModule,
     RealtimeModule,
