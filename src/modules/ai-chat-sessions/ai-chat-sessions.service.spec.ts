@@ -2,15 +2,18 @@ import { HttpException, HttpStatus } from '@nestjs/common';
 import { GameRoomMissionsService } from '@modules/game-room-missions/service/game-room-missions.service';
 import { GameRoomParticipantsService } from '@modules/game-room-participants/service/game-room-participants.service';
 import { GameStartFlowService } from '@modules/game-rooms/service/game-start-flow.service';
+import { GameRoomEntity } from '@modules/game-rooms/entity/game-room.entity';
 import { GameRoomsService } from '@modules/game-rooms/service/game-rooms.service';
 import { DataSource, Repository } from 'typeorm';
 import {
+  AiChatSessionStatus,
   AiChatMessageSenderType,
   AiChatMessageType,
   AiChatRequestStatus,
   AiChatRequestType,
 } from '../../shared/enums/ai-chat.enum';
 import { AiChatCommandResultStatus } from '../../shared/dto/ai-chat-command.dto';
+import { GameRoomStatus } from '../../shared/enums/game-room.enum';
 import type { LlmFollowUpGeneratorPort } from '../../integrations/llm/llm-follow-up.port';
 import type { LlmIntentParserPort } from '../../integrations/llm/llm-intent-parser.port';
 import { User } from '../auth/entity/user.entity';
@@ -31,6 +34,7 @@ describe('AiChatSessionsService', () => {
   let aiChatRequestRepository: jest.Mocked<Repository<AiChatRequest>>;
   let userRepository: jest.Mocked<Repository<User>>;
   let participantRepository: jest.Mocked<Repository<GameRoomParticipantEntity>>;
+  let gameRoomRepository: { findOne: jest.Mock };
   let dataSource: jest.Mocked<DataSource>;
   let gameRoomsService: jest.Mocked<GameRoomsService>;
   let gameStartFlowService: jest.Mocked<GameStartFlowService>;
@@ -44,6 +48,7 @@ describe('AiChatSessionsService', () => {
     aiChatSessionRepository = {
       find: jest.fn(),
       findOne: jest.fn(),
+      create: jest.fn((value) => value as AiChatSession),
       save: jest.fn(async (value) => value as AiChatSession),
     } as unknown as jest.Mocked<Repository<AiChatSession>>;
 
@@ -65,8 +70,18 @@ describe('AiChatSessionsService', () => {
       findOne: jest.fn(),
     } as unknown as jest.Mocked<Repository<GameRoomParticipantEntity>>;
 
+    gameRoomRepository = {
+      findOne: jest.fn(),
+    };
+
     dataSource = {
       transaction: jest.fn(),
+      getRepository: jest.fn((entity: unknown) => {
+        if (entity === GameRoomEntity) {
+          return gameRoomRepository;
+        }
+        throw new Error('Unexpected entity');
+      }),
     } as unknown as jest.Mocked<DataSource>;
 
     gameRoomsService = {
@@ -210,6 +225,73 @@ describe('AiChatSessionsService', () => {
       expect(result[0].createdAt).toContain('+09:00');
     });
 
+    it('creates a new ACTIVE session when the user only has CLOSED sessions', async () => {
+      const closedAt = new Date('2026-05-04T00:12:00Z');
+      aiChatSessionRepository.findOne
+        .mockResolvedValueOnce(null)
+        .mockResolvedValueOnce({
+          id: 'closed-session-1',
+          requesterUserId: user.userId,
+          gameRoomId: 'finished-room-1',
+          providerConversationId: null,
+          provider: 'openai',
+          llmModel: 'gpt-4o',
+          status: AiChatSessionStatus.CLOSED,
+          createdAt: new Date('2026-05-04T00:10:00Z'),
+          updatedAt: closedAt,
+          closedAt,
+        } as AiChatSession);
+      aiChatSessionRepository.save.mockResolvedValueOnce({
+        id: 'active-session-2',
+        requesterUserId: user.userId,
+        gameRoomId: null,
+        providerConversationId: null,
+        provider: 'openai',
+        llmModel: 'gpt-4o',
+        status: AiChatSessionStatus.ACTIVE,
+        createdAt: new Date('2026-05-04T00:13:00Z'),
+        updatedAt: new Date('2026-05-04T00:13:00Z'),
+        closedAt: null,
+      } as AiChatSession);
+      aiChatSessionRepository.find.mockResolvedValue([
+        {
+          id: 'closed-session-1',
+          requesterUserId: user.userId,
+          gameRoomId: 'finished-room-1',
+          providerConversationId: null,
+          provider: 'openai',
+          llmModel: 'gpt-4o',
+          status: AiChatSessionStatus.CLOSED,
+          createdAt: new Date('2026-05-04T00:10:00Z'),
+          updatedAt: closedAt,
+          closedAt,
+        } as AiChatSession,
+        {
+          id: 'active-session-2',
+          requesterUserId: user.userId,
+          gameRoomId: null,
+          providerConversationId: null,
+          provider: 'openai',
+          llmModel: 'gpt-4o',
+          status: AiChatSessionStatus.ACTIVE,
+          createdAt: new Date('2026-05-04T00:13:00Z'),
+          updatedAt: new Date('2026-05-04T00:13:00Z'),
+          closedAt: null,
+        } as AiChatSession,
+      ]);
+
+      const result = await service.listSessions(user, {});
+
+      expect(aiChatSessionRepository.create).toHaveBeenCalledWith(
+        expect.objectContaining({
+          requesterUserId: user.userId,
+          gameRoomId: null,
+          status: AiChatSessionStatus.ACTIVE,
+        }),
+      );
+      expect(result.some((session) => session.status === AiChatSessionStatus.ACTIVE)).toBe(true);
+    });
+
     it('rejects userId that does not match the authenticated user', async () => {
       await expect(
         service.listSessions(user, { userId: 'other-user' }),
@@ -238,6 +320,7 @@ describe('AiChatSessionsService', () => {
         requesterUserId: user.userId,
         gameRoomId: null,
       } as AiChatSession);
+      gameRoomRepository.findOne.mockResolvedValue(null);
     });
 
     it('persists COMPLETED ROOM_CREATE with PENDING commandResult after parsing', async () => {
@@ -499,6 +582,88 @@ describe('AiChatSessionsService', () => {
           title: '표준 입력 계산기',
           participants: null,
           started: false,
+        },
+      });
+    });
+
+    it('continues pending ROOM_CREATE after game end when the session still references a finished room', async () => {
+      aiChatSessionRepository.findOne.mockResolvedValue({
+        id: sessionId,
+        requesterUserId: user.userId,
+        gameRoomId: 'finished-room-1',
+      } as AiChatSession);
+      gameRoomRepository.findOne.mockResolvedValue({
+        id: 'finished-room-1',
+        status: GameRoomStatus.FINISHED,
+      });
+      llmIntentParser.parseUserMessage.mockResolvedValue({
+        requestType: 'ROOM_CREATE',
+        payload: {},
+      });
+      llmFollowUpGenerator.generateCommandFollowUp.mockRejectedValueOnce(
+        new Error('follow-up unavailable'),
+      );
+      gameRoomMissionsService.listSelectableMissionTemplates.mockResolvedValueOnce([
+        {
+          templateId: 'template-stdin-calculator',
+          title: '표준 입력 계산기',
+          description: '표준 입력으로 계산식을 처리하는 미션입니다.',
+          difficulty: 'EASY',
+        },
+      ]);
+      aiChatRequestRepository.find.mockResolvedValue([
+        {
+          requestPayload: {
+            command: {
+              requestType: AiChatRequestType.ROOM_CREATE,
+              desiredDifficulty: 'EASY',
+            },
+          },
+          responsePayload: {
+            commandResult: {
+              status: AiChatCommandResultStatus.PENDING,
+              gameRoomId: null,
+            },
+          },
+          requestedAt: new Date('2026-05-04T00:10:00Z'),
+        } as unknown as AiChatRequest,
+      ]);
+      mockTransactions();
+      gameRoomMissionsService.validateMissionTemplateSelection.mockResolvedValue({
+        id: 'template-stdin-calculator',
+      } as never);
+      gameRoomsService.createRoom.mockResolvedValue({
+        id: 'room-2',
+      } as never);
+
+      const result = await service.createMessage(user, sessionId, {
+        message: '표준 입력 계산기 템플릿으로 진행할게요.',
+      });
+
+      expect(llmIntentParser.parseUserMessage).toHaveBeenCalledWith({
+        message: '표준 입력 계산기 템플릿으로 진행할게요.',
+        gameRoomId: null,
+      });
+      expect(gameRoomMissionsService.validateMissionTemplateSelection).toHaveBeenCalledWith(
+        'EASY',
+        'template-stdin-calculator',
+      );
+      expect(gameRoomsService.createRoom).toHaveBeenCalledWith({
+        ownerUserId: user.userId,
+        difficulty: 'EASY',
+        timeLimitSeconds: 30,
+        maxStrikeCount: 3,
+        minParticipants: 2,
+        maxParticipants: 4,
+      });
+      expect(result).toMatchObject({
+        requestType: AiChatRequestType.ROOM_CREATE,
+        requestStatus: AiChatRequestStatus.COMPLETED,
+        commandResult: {
+          commandType: AiChatRequestType.ROOM_CREATE,
+          status: AiChatCommandResultStatus.SUCCESS,
+          gameRoomId: 'room-2',
+          title: '표준 입력 계산기',
         },
       });
     });

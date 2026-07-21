@@ -8,11 +8,13 @@ import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import { GameRoomMissionsService } from '@modules/game-room-missions/service/game-room-missions.service';
 import { GameRoomParticipantEntity } from '@modules/game-room-participants/entity/game-room-participant.entity';
 import { TurnsService } from '@modules/turns/service/turns.service';
+import { AiChatSession } from '@modules/ai-chat-sessions/entity/ai-chat-session.entity';
 import { TurnEntity } from '@modules/turns/entity/turn.entity';
 import { GameRoomMissionEntity } from '@modules/game-room-missions/entity/game-room-mission.entity';
 import { GameRoomMissionStepEntity } from '@modules/game-room-missions/entity/game-room-mission-step.entity';
 import { GameRoomEntity } from '../entity/game-room.entity';
 import {
+  AiChatSessionStatus,
   GameRoomParticipantMembershipStatus,
   GameRoomParticipantRole,
   GameRoomStatus,
@@ -138,6 +140,7 @@ export class GameRoomsService {
       }
 
       room.status = GameRoomStatus.FINISHED;
+      await this.closeActiveAiChatSessionsForRoom(manager, gameRoomId);
       const savedRoom = await roomRepository.save(room);
 
       return {
@@ -262,6 +265,22 @@ export class GameRoomsService {
         message: 'User already belongs to a waiting room.',
       });
     }
+  }
+
+  private async closeActiveAiChatSessionsForRoom(
+    manager: EntityManager,
+    gameRoomId: string,
+  ): Promise<void> {
+    await manager.getRepository(AiChatSession).update(
+      {
+        gameRoomId,
+        status: AiChatSessionStatus.ACTIVE,
+      },
+      {
+        status: AiChatSessionStatus.CLOSED,
+        closedAt: new Date(),
+      },
+    );
   }
 
   private async acquireWaitingRoomLock(

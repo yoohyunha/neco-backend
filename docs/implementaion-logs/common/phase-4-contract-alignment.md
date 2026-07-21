@@ -226,6 +226,94 @@
 - Start Task 2 from `docs/specs/05-api-and-realtime.md`, not from historical Worker 3 submit notes.
 - If implementation still needs submit-time file merge fallbacks, keep them behind internal interfaces and do not surface them in external DTO names.
 
+## [2026-07-21] Workspace task: Stabilize AI chat session lifecycle after game finish
+
+**Plan reference:** `docs/plans/common-sequential-plan.md`
+
+**Summary:**
+- Fixed the post-game room-creation loop where selecting a mission template after game finish sent the user back to difficulty selection again.
+- Changed game-finish handling so room-bound `ACTIVE` AI chat sessions are closed when the room becomes `FINISHED`, preventing old in-game chat history from being restored on the next main entry.
+- Added automatic creation of a new empty `ACTIVE` AI chat session when main entry finds only `CLOSED` history, and documented the required DB constraint change for “one ACTIVE session per user”.
+- Diagnosed a live 500 error after deployment and confirmed it came from a stale database uniqueness constraint on `ai_chat_sessions.requester_user_id`.
+
+**Dependencies reviewed before starting:**
+- `docs/implementaion-logs/README.md`
+- `docs/implementaion-logs/common/phase-2-integration.md`
+- `docs/specs/00-overview.md`
+- `docs/specs/04-data-model.md`
+- `docs/specs/05-api-and-realtime.md`
+- `docs/specs/06-gameplay-lifecycle.md`
+- `src/modules/ai-chat-sessions/ai-chat-sessions.service.ts`
+- `src/modules/game-rooms/service/game-rooms.service.ts`
+- `src/modules/turns/service/turns.service.ts`
+
+**Implementation details:**
+- `AiChatSessionsService.createMessage()` now normalizes `session.gameRoomId` before parsing or command execution. If the session still points to a `FINISHED` room, that room context is ignored so pending `ROOM_CREATE` context can be reused correctly.
+- Added regression coverage in `ai-chat-sessions.service.spec.ts` for the exact post-game repro: selecting a mission template after finishing a prior room now completes room creation instead of looping back to difficulty selection.
+- `TurnsService` now closes all `ACTIVE` `AiChatSession` rows bound to a room when mission completion or strike-limit termination marks that room `FINISHED`.
+- `GameRoomsService.finishRoomIfBelowMinParticipants()` now also closes room-bound `ACTIVE` chat sessions when a room is force-finished because joined participants dropped below `minParticipants`.
+- `AiChatSessionsService.listSessions()` now guarantees at least one `ACTIVE` session for the current user. If only `CLOSED` history exists, it creates a new empty `ACTIVE` session using the latest known provider/model defaults.
+- `AiChatSession.requesterUserId` entity metadata was relaxed from table-wide unique to ordinary indexed ownership so the storage model can keep `CLOSED` history while allowing exactly one `ACTIVE` session.
+- Added migration `1748329200000-AllowClosedAiChatHistory.ts` to replace the old table-wide uniqueness rule with a partial unique index on `requester_user_id WHERE status = 'ACTIVE'`.
+- Updated `docs/specs/04-data-model.md`, `05-api-and-realtime.md`, and `06-gameplay-lifecycle.md` so the canonical behavior is now “at most one ACTIVE chat session per user” rather than “exactly one total chat session per user”.
+- During runtime verification, the dev Postgres database was found to have no `migrations` table and still had the old uniqueness constraint. `pnpm migration:run` attempted to rerun bootstrap migrations and failed on existing tables. The immediate unblock was a manual Postgres DDL update that removed the stale unique constraint and created the partial unique index directly in the running DB.
+
+**Files changed:**
+- `database/migrations/1748329200000-AllowClosedAiChatHistory.ts`
+- `docs/specs/04-data-model.md`
+- `docs/specs/05-api-and-realtime.md`
+- `docs/specs/06-gameplay-lifecycle.md`
+- `src/modules/ai-chat-sessions/ai-chat-sessions.service.ts`
+- `src/modules/ai-chat-sessions/ai-chat-sessions.service.spec.ts`
+- `src/modules/ai-chat-sessions/entity/ai-chat-session.entity.ts`
+- `src/modules/game-rooms/service/game-rooms.service.ts`
+- `src/modules/game-rooms/service/game-rooms.service.spec.ts`
+- `src/modules/turns/service/turns.service.ts`
+- `src/modules/turns/service/turns.service.spec.ts`
+- `docs/implementaion-logs/common/phase-4-contract-alignment.md`
+
+**Verification:**
+- [x] `pnpm test -- src/modules/ai-chat-sessions/ai-chat-sessions.service.spec.ts`
+- [x] `pnpm test -- src/modules/turns/service/turns.service.spec.ts`
+- [x] `pnpm test -- src/modules/game-rooms/service/game-rooms.service.spec.ts`
+- [x] Manual container verification: `docker compose up -d --build app` completed and the Nest app restarted successfully on `:8080`
+- [x] Manual database verification: `ai_chat_sessions` now has `IDX_ai_chat_sessions_active_requester_user_id` as a partial unique index on `status = 'ACTIVE'`
+- [ ] Full `pnpm migration:run` was not completed successfully in this dev DB because the environment had no recorded migration history and attempted to replay bootstrap migrations against already-existing tables
+
+**Commit:**
+- `not created` workspace task only
+
+**Impact on next tasks:**
+- Main-entry flows can now safely treat `ACTIVE` AI chat sessions as resumable and `CLOSED` sessions as historical only.
+- Any future “new chat session” feature should preserve the invariant of one `ACTIVE` session per user, not one total session per user.
+- Infra or environment follow-up is now needed to normalize migration history in dev/staging databases before relying on `pnpm migration:run` as the primary rollout path.
+
+**Design decisions made:**
+- Chose to close sessions at authoritative room-finish points instead of trying to lazily filter finished-room sessions only in the read path. This keeps the persistence model aligned with the UI rule that finished game chats must not be restored.
+- Chose to auto-create a new empty `ACTIVE` session in `listSessions()` so `/main` remains compatible with the existing frontend expectation that an immediately selectable session exists.
+- Chose a partial unique index for `ACTIVE` sessions rather than reusing the old full-table uniqueness rule, because preserving `CLOSED` session history was part of the requested behavior.
+
+**Deviations from spec:**
+- The prior spec and historical logs described MVP as one total AI chat session per user. This task intentionally changed that rule to one `ACTIVE` session per user plus optional `CLOSED` history, and updated the canonical spec files accordingly.
+
+**Trade-offs:**
+- Auto-creating an `ACTIVE` session in `listSessions()` keeps the current frontend simple, but it means a GET endpoint now performs a write when the user has only closed history.
+- The live DB fix used direct SQL in the dev container because migration history was already inconsistent. That was the fastest safe unblock, but it is not a substitute for proper migration-state repair in shared environments.
+
+**Open questions:**
+- [ ] Should `/main` keep relying on `GET /ai-chat-sessions` to auto-provision a new `ACTIVE` session, or should session creation move to an explicit endpoint or first-message bootstrap flow later?
+- [ ] How should existing non-dev environments repair missing `migrations` history so `pnpm migration:run` can safely apply incremental changes without manual SQL?
+
+**Open risks or follow-ups:**
+- Any environment that still has the old table-wide unique constraint on `ai_chat_sessions.requester_user_id` will continue to throw 500s after the first `CLOSED` session unless the DB constraint is updated.
+- Because the current dev DB lacked migration history, deployment automation should not assume `migration:run` is currently trustworthy there without first backfilling the `migrations` table or rebaselining the schema.
+- If `listSessions()` continues to provision sessions, future caching or read-replica assumptions for that endpoint will need to account for side effects.
+
+**Instructions for the next worker:**
+- Read this entry before touching AI chat session lifecycle, especially if you are changing main-entry behavior or room-finish handling.
+- Preserve the distinction between `ACTIVE` resumable chat state and `CLOSED` historical chat state.
+- Before using `pnpm migration:run` in an existing environment, inspect whether the `migrations` table is populated and whether `ai_chat_sessions` already has the partial unique index.
+
 ## [2026-06-01] Task 2: Align shared realtime DTOs and support-state interfaces to the reconciled contract
 
 **Plan reference:** `docs/plans/realtime-contract-alignment-plan.md`

@@ -8,7 +8,7 @@ After login, the client composes the initial state from:
 - `GET /game-room-participants`
 - `GET /ai-chat-sessions`
 
-Signup creates the user's AI chat session ahead of main entry, so MVP main entry should always find exactly one reusable AI chat session for that user.
+Signup creates the user's initial AI chat session ahead of main entry, and MVP main entry should always find at least one reusable `ACTIVE` AI chat session for that user.
 
 Decision rules:
 
@@ -23,7 +23,7 @@ Decision rules:
 ### Onboarding and Authentication
 
 - signup
-- signup auto-creates one AI chat session for the new user
+- signup auto-creates one initial `ACTIVE` AI chat session for the new user
 - login
 - first room creation guided through AI chat
 
@@ -177,6 +177,7 @@ On completion the server:
 3. sets `game_rooms.status = FINISHED`
 4. records `game_room_missions.finished_at` when needed
 5. broadcasts `mission-result` and `game-state-updated`
+6. closes every `ACTIVE` `ai_chat_session` bound to that finished room so old in-game chat history is not restored on the next main entry
 
 ## Sequence Coverage
 

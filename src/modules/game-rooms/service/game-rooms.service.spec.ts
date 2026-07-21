@@ -4,9 +4,11 @@ import { DataSource, In, Repository } from 'typeorm';
 import { GameRoomMissionsService } from '@modules/game-room-missions/service/game-room-missions.service';
 import { GameRoomParticipantEntity } from '@modules/game-room-participants/entity/game-room-participant.entity';
 import { TurnsService } from '@modules/turns/service/turns.service';
+import { AiChatSession } from '@modules/ai-chat-sessions/entity/ai-chat-session.entity';
 import { GameRoomsService } from './game-rooms.service';
 import { GameRoomEntity } from '../entity/game-room.entity';
 import {
+  AiChatSessionStatus,
   GameRoomParticipantMembershipStatus,
   GameRoomParticipantRole,
   GameRoomStatus,
@@ -35,6 +37,7 @@ describe('GameRoomsService', () => {
   let turnsService: jest.Mocked<Pick<TurnsService, 'createInitialTurn'>>;
   let manager: { getRepository: jest.Mock; query: jest.Mock };
   let dataSource: { transaction: jest.Mock; getRepository: jest.Mock };
+  let aiChatSessionRepository: { update: jest.Mock };
 
   beforeEach(() => {
     roomRepository = {
@@ -62,10 +65,17 @@ describe('GameRoomsService', () => {
       createInitialTurn: jest.fn(),
     };
 
+    aiChatSessionRepository = {
+      update: jest.fn(),
+    };
+
     manager = {
       getRepository: jest.fn((entity) => {
         if (entity === GameRoomEntity) {
           return roomRepository;
+        }
+        if (entity === AiChatSession) {
+          return aiChatSessionRepository;
         }
 
         return participantRepository;
@@ -575,6 +585,15 @@ describe('GameRoomsService', () => {
       expect.objectContaining({
         id: 'room-1',
         status: GameRoomStatus.FINISHED,
+      }),
+    );
+    expect(aiChatSessionRepository.update).toHaveBeenCalledWith(
+      {
+        gameRoomId: 'room-1',
+        status: AiChatSessionStatus.ACTIVE,
+      },
+      expect.objectContaining({
+        status: AiChatSessionStatus.CLOSED,
       }),
     );
   });

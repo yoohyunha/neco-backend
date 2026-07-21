@@ -3,7 +3,7 @@ import { BaseEntity } from '../../../database/base.entity';
 
 @Entity('ai_chat_sessions')
 export class AiChatSession extends BaseEntity {
-  @Column({ name: 'requester_user_id', type: 'uuid', unique: true })
+  @Column({ name: 'requester_user_id', type: 'uuid' })
   requesterUserId!: string;
 
   @Column({ name: 'game_room_id', type: 'uuid', nullable: true })

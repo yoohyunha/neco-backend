@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { DataSource, EntityManager } from 'typeorm';
 import { ExecutionEntity } from '@modules/executions/entity/execution.entity';
 import { ExecutionsService } from '@modules/executions/service/executions.service';
+import { AiChatSession } from '@modules/ai-chat-sessions/entity/ai-chat-session.entity';
 import { GameRoomMissionStepEntity } from '@modules/game-room-missions/entity/game-room-mission-step.entity';
 import { GameRoomMissionEntity } from '@modules/game-room-missions/entity/game-room-mission.entity';
 import { GameRoomMissionsService } from '@modules/game-room-missions/service/game-room-missions.service';
@@ -10,6 +11,7 @@ import { GameRoomParticipantEntity } from '@modules/game-room-participants/entit
 import { GameRoomEntity } from '@modules/game-rooms/entity/game-room.entity';
 import { MissionResultsService } from '@modules/mission-results/service/mission-results.service';
 import {
+  AiChatSessionStatus,
   ExecutionStatus,
   GameRoomMissionStepStatus,
   GameRoomParticipantMembershipStatus,
@@ -362,6 +364,15 @@ describe('TurnsService', () => {
     expect(result.gameStateUpdatedEvent.gameState).toMatchObject({
       status: GameRoomStatus.FINISHED,
     });
+    expect(manager.aiChatSessionRepository.update).toHaveBeenCalledWith(
+      {
+        gameRoomId: room.id,
+        status: AiChatSessionStatus.ACTIVE,
+      },
+      expect.objectContaining({
+        status: AiChatSessionStatus.CLOSED,
+      }),
+    );
   });
 
   it('rejects duplicate submit when the turn is no longer in progress', async () => {
@@ -1128,6 +1139,15 @@ describe('TurnsService', () => {
     expect(result.gameStateUpdatedEvent.gameState).toMatchObject({
       status: GameRoomStatus.FINISHED,
     });
+    expect(manager.aiChatSessionRepository.update).toHaveBeenCalledWith(
+      {
+        gameRoomId: room.id,
+        status: AiChatSessionStatus.ACTIVE,
+      },
+      expect.objectContaining({
+        status: AiChatSessionStatus.CLOSED,
+      }),
+    );
   });
 
   it('records runtime ERROR for calculator public cases without incrementing strike', async () => {
@@ -1616,8 +1636,12 @@ function createManager(input: {
   const missionSteps = Array.isArray(input.mission.steps) && input.mission.steps.length > 0
     ? input.mission.steps
     : [input.currentStep];
+  const aiChatSessionRepository = {
+    update: jest.fn(),
+  };
 
   return {
+    aiChatSessionRepository,
     query: jest.fn(),
     getRepository: jest.fn((entity) => {
       if (entity === GameRoomEntity) {
@@ -1699,6 +1723,10 @@ function createManager(input: {
             return snapshot;
           }),
         };
+      }
+
+      if (entity === AiChatSession) {
+        return aiChatSessionRepository;
       }
 
       return {
