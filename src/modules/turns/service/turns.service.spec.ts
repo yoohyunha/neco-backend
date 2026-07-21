@@ -227,6 +227,12 @@ describe('TurnsService', () => {
       content: 'print("done")\n',
       fileUrl: 'data:text/plain;charset=utf-8,print(%22done%22)%0A',
     });
+    expect(
+      (mission.projectStructureJson.files as Array<Record<string, unknown>>)[0],
+    ).toMatchObject({
+      filePath: 'main.py',
+      content: 'print("done")\n',
+    });
     expect(result.missionResultEvent).toBeNull();
     expect(result.gameStateUpdatedEvent.gameState).toMatchObject({
       status: GameRoomStatus.IN_PROGRESS,
@@ -929,6 +935,17 @@ describe('TurnsService', () => {
   it('marks calculator step as failed when stdout does not match expectedStdout', async () => {
     const room = createRoom();
     const mission = createCalculatorMission();
+    mission.projectStructureJson = {
+      ...mission.projectStructureJson,
+      files: [
+        {
+          filePath: 'main.py',
+          language: 'python',
+          readonly: false,
+          content: 'print("last accepted")\n',
+        },
+      ],
+    };
     const currentStep = createCurrentStep();
     const turn = createTurn();
     const manager = createManager({
@@ -1011,6 +1028,10 @@ describe('TurnsService', () => {
       }),
     );
     expect(result.turnChangedEvent).not.toBeNull();
+    expect(result.turnChangedEvent?.missionState?.projectStructure.files[0]).toMatchObject({
+      filePath: 'main.py',
+      content: 'print("last accepted")\n',
+    });
     expect(result.missionResultEvent).toBeNull();
     expect(missionResultsService.createMissionResult).toHaveBeenCalledWith(
       expect.objectContaining({

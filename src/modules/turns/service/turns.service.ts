@@ -350,6 +350,19 @@ export class TurnsService {
         missionRepository,
         nextState.mission.id,
       );
+      let lifecycleSnapshotFiles = input.preparedState.snapshot.codeSnapshotJson.files;
+
+      if (nextState.judgeStatus === MissionResultJudgeStatus.PASSED) {
+        hydratedMission.projectStructureJson = withAcceptedSnapshot(
+          hydratedMission.projectStructureJson,
+          lifecycleSnapshotFiles,
+        );
+        await missionRepository.save(hydratedMission);
+      } else if (nextState.judgeStatus === MissionResultJudgeStatus.FAILED) {
+        // A failed attempt remains auditable in turn_snapshots, but never becomes
+        // the collaborative editor baseline for the next player.
+        lifecycleSnapshotFiles = [];
+      }
 
       return buildLifecycleEvents({
         room: nextState.room,
@@ -362,7 +375,7 @@ export class TurnsService {
         occurredAt: input.preparedState.occurredAt,
         nextTurn: nextState.nextTurn,
         snapshotId: input.preparedState.snapshot.id,
-        snapshotFiles: input.preparedState.snapshot.codeSnapshotJson.files,
+        snapshotFiles: lifecycleSnapshotFiles,
         submittedStatus: input.submittedStatus,
         missionFinished: nextState.missionFinished,
         suppressNextTurnCreation: input.preparedState.suppressNextTurnCreation,
@@ -901,6 +914,34 @@ function withProjectStructureFileUrls(
           readonly: typeof file.readonly === 'boolean' ? file.readonly : false,
           fileUrl:
             asString(file.fileUrl) ?? buildInlineFileUrl(content),
+        };
+      }),
+  };
+}
+
+function withAcceptedSnapshot(
+  projectStructureJson: Record<string, unknown>,
+  snapshotFiles: SnapshotFile[],
+): Record<string, unknown> {
+  const projectStructure = asRecord(projectStructureJson);
+  const files = Array.isArray(projectStructure.files) ? projectStructure.files : [];
+
+  return {
+    ...projectStructure,
+    files: files
+      .filter((file): file is Record<string, unknown> => isRecord(file))
+      .map((file) => {
+        const filePath = asString(file.filePath) ?? '';
+        const snapshotFile = findSnapshotFile(snapshotFiles, filePath);
+
+        if (!snapshotFile) {
+          return file;
+        }
+
+        return {
+          ...file,
+          content: snapshotFile.content,
+          fileUrl: buildInlineFileUrl(snapshotFile.content),
         };
       }),
   };

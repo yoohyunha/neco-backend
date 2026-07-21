@@ -219,7 +219,7 @@
           "filePath": "main.py",
           "language": "python",
           "readonly": false,
-          "content": "def main():\n    # Read three stdin lines: left number, operator, right number.\n    pass\n\n\nif __name__ == \"__main__\":\n    main()\n"
+          "content": "def main():\n    # 아래 pass를 지우고 계산기 코드를 작성하세요.\n    # 입력 순서: 왼쪽 숫자 → 연산자 → 오른쪽 숫자\n    # 계산 결과는 print()로 출력하세요.\n    pass\n\n\nif __name__ == \"__main__\":\n    main()\n"
         },
         {
           "filePath": "README.md",
