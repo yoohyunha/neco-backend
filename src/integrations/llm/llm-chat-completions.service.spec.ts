@@ -121,4 +121,25 @@ describe('LlmChatCompletionsService', () => {
     await expect(service.createCompletion(baseInput)).rejects.toThrow('LLM HTTP 503');
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
+
+  it('retries once on transient failure then returns success', async () => {
+    const fetchMock = jest
+      .fn()
+      .mockResolvedValueOnce({
+        ok: false,
+        status: 503,
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          choices: [{ message: { content: 'recovered' } }],
+        }),
+      });
+    global.fetch = fetchMock as typeof fetch;
+
+    await expect(service.createCompletion(baseInput)).resolves.toEqual({
+      content: 'recovered',
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+  });
 });

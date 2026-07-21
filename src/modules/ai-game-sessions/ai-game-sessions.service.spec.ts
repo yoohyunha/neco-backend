@@ -232,7 +232,33 @@ describe('AiGameSessionsService', () => {
   });
 
   describe('appendRealtimeEvent', () => {
-    it('persists a realtime event with defaults', async () => {
+    it('defaults deliveryStatus to PENDING without deliveredAt', async () => {
+      const occurredAt = new Date('2026-07-21T01:00:10.000Z');
+
+      await service.appendRealtimeEvent({
+        aiGameRequestId: 'request-1',
+        aiGameSessionId: 'session-1',
+        gameRoomId: 'room-1',
+        eventType: AiRealtimeEventType.MISSION_FEEDBACK,
+        message: '현재 미션 단계를 통과했습니다.',
+        occurredAt,
+      });
+
+      expect(aiRealtimeEventRepository.create).toHaveBeenCalledWith({
+        aiGameRequestId: 'request-1',
+        aiGameSessionId: 'session-1',
+        gameRoomId: 'room-1',
+        eventType: AiRealtimeEventType.MISSION_FEEDBACK,
+        targetUserId: null,
+        message: '현재 미션 단계를 통과했습니다.',
+        payloadJson: null,
+        deliveryStatus: AiRealtimeDeliveryStatus.PENDING,
+        occurredAt,
+        deliveredAt: null,
+      });
+    });
+
+    it('persists SENT delivery with deliveredAt defaulted to occurredAt', async () => {
       const occurredAt = new Date('2026-07-21T01:00:10.000Z');
 
       const result = await service.appendRealtimeEvent({
@@ -258,6 +284,33 @@ describe('AiGameSessionsService', () => {
         deliveredAt: occurredAt,
       });
       expect(result.id).toBe('event-1');
+    });
+
+    it('persists FAILED delivery without inventing deliveredAt', async () => {
+      const occurredAt = new Date('2026-07-21T01:00:10.000Z');
+
+      await service.appendRealtimeEvent({
+        aiGameRequestId: 'request-1',
+        aiGameSessionId: 'session-1',
+        gameRoomId: 'room-1',
+        eventType: AiRealtimeEventType.MISSION_FEEDBACK,
+        message: '피드백 전달 실패',
+        occurredAt,
+        deliveryStatus: AiRealtimeDeliveryStatus.FAILED,
+      });
+
+      expect(aiRealtimeEventRepository.create).toHaveBeenCalledWith({
+        aiGameRequestId: 'request-1',
+        aiGameSessionId: 'session-1',
+        gameRoomId: 'room-1',
+        eventType: AiRealtimeEventType.MISSION_FEEDBACK,
+        targetUserId: null,
+        message: '피드백 전달 실패',
+        payloadJson: null,
+        deliveryStatus: AiRealtimeDeliveryStatus.FAILED,
+        occurredAt,
+        deliveredAt: null,
+      });
     });
   });
 });
