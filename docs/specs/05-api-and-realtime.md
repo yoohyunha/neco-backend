@@ -22,7 +22,7 @@ Auth request field rules:
 - `POST /v1/auth/signup` accepts `passwordHash` as a SHA-256 hex string.
 - `POST /v1/auth/login` accepts `passwordHash` as a SHA-256 hex string.
 - `POST /v1/auth/refresh-token` returns both a new `accessToken` and a new `refreshToken`.
-- On successful signup, the server automatically creates exactly one AI chat session for that user.
+- On successful signup, the server automatically creates one initial `ACTIVE` AI chat session for that user.
 
 Authorization header:
 
@@ -104,7 +104,7 @@ Error:
 
 Main entry contract notes:
 
-- `GET /v1/ai-chat-sessions` returns the user's single AI chat session in MVP.
+- `GET /v1/ai-chat-sessions` returns the user's AI chat session list in MVP and must guarantee at least one `ACTIVE` session for main-entry use.
 - `GET /v1/game-rooms` may return multiple rooms across statuses, but the server must guarantee at most one `WAITING` room per user.
 - If multiple `WAITING` rooms are returned for one user, the client should treat that as an abnormal state.
 

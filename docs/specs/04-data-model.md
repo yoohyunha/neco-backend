@@ -74,7 +74,7 @@ Persistent tables currently defined in the ERD:
 
 Constraint intent notes:
 
-- `ai_chat_sessions(requester_user_id)` should be treated as unique in MVP because each user has exactly one AI chat session.
+- `ai_chat_sessions(requester_user_id, status='ACTIVE')` should be treated as unique in MVP because each user may keep closed chat history but must have at most one active AI chat session.
 - The single-`WAITING`-room-per-user rule is primarily a service-layer invariant, but the storage design may add a supporting partial unique constraint or equivalent guard if needed.
 
 ## State Management Rules

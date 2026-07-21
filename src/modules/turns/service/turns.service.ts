@@ -9,6 +9,7 @@ import { toSeoulIso } from '@common/utils/date.util';
 import { DataSource, EntityManager, Repository } from 'typeorm';
 import { ExecutionsService } from '@modules/executions/service/executions.service';
 import { ExecutionEntity } from '@modules/executions/entity/execution.entity';
+import { AiChatSession } from '@modules/ai-chat-sessions/entity/ai-chat-session.entity';
 import { GameRoomMissionStepEntity } from '@modules/game-room-missions/entity/game-room-mission-step.entity';
 import { GameRoomMissionEntity } from '@modules/game-room-missions/entity/game-room-mission.entity';
 import { GameRoomMissionsService } from '@modules/game-room-missions/service/game-room-missions.service';
@@ -17,6 +18,7 @@ import { GameRoomEntity } from '@modules/game-rooms/entity/game-room.entity';
 import { buildTurnEvaluationResultPayload } from '@modules/mission-results/build-turn-evaluation-result-payload';
 import { MissionResultsService } from '@modules/mission-results/service/mission-results.service';
 import {
+  AiChatSessionStatus,
   ExecutionStatus,
   GameRoomMissionStepStatus,
   GameRoomParticipantMembershipStatus,
@@ -421,6 +423,7 @@ export class TurnsService {
         nextTurn = await this.createNextTurn(input.manager, room, mission, input.turn);
       } else if (missionFinished) {
         room.status = GameRoomStatus.FINISHED;
+        await this.closeActiveAiChatSessionsForRoom(input.manager, room.id, input.occurredAt);
         room = await roomRepository.save(room);
       }
     } else if (judgeStatus === MissionResultJudgeStatus.FAILED) {
@@ -445,6 +448,7 @@ export class TurnsService {
         nextTurn = await this.createNextTurn(input.manager, room, mission, input.turn);
       } else if (missionFinished) {
         room.status = GameRoomStatus.FINISHED;
+        await this.closeActiveAiChatSessionsForRoom(input.manager, room.id, input.occurredAt);
         room = await roomRepository.save(room);
       }
     } else {
@@ -526,6 +530,23 @@ export class TurnsService {
     });
 
     return turnRepository.save(nextTurn);
+  }
+
+  private async closeActiveAiChatSessionsForRoom(
+    manager: EntityManager,
+    gameRoomId: string,
+    occurredAt: Date,
+  ): Promise<void> {
+    await manager.getRepository(AiChatSession).update(
+      {
+        gameRoomId,
+        status: AiChatSessionStatus.ACTIVE,
+      },
+      {
+        status: AiChatSessionStatus.CLOSED,
+        closedAt: occurredAt,
+      },
+    );
   }
 
   private async acquireTurnLifecycleLock(

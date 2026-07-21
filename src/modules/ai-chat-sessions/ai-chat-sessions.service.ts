@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { GameRoomParticipantEntity } from '@modules/game-room-participants/entity/game-room-participant.entity';
 import { GameRoomParticipantsService } from '@modules/game-room-participants/service/game-room-participants.service';
 import { GameRoomMissionsService } from '@modules/game-room-missions/service/game-room-missions.service';
+import { GameRoomEntity } from '@modules/game-rooms/entity/game-room.entity';
 import { GameStartFlowService } from '@modules/game-rooms/service/game-start-flow.service';
 import { GameRoomsService } from '@modules/game-rooms/service/game-rooms.service';
 import { DataSource, FindOptionsWhere, In, Repository } from 'typeorm';
@@ -18,6 +19,7 @@ import {
   type LlmIntentRawResponse,
 } from '../../integrations/llm/llm-intent-parser.port';
 import {
+  AiChatSessionStatus,
   AiChatMessageSenderType,
   AiChatMessageType,
   AiChatRequestStatus,
@@ -110,6 +112,8 @@ const DEFAULT_ROOM_CREATE_SETTINGS = {
   minParticipants: 2,
   maxParticipants: 4,
 } as const;
+const DEFAULT_AI_CHAT_PROVIDER = 'openai';
+const DEFAULT_AI_CHAT_MODEL = 'gpt-4o';
 
 @Injectable()
 export class AiChatSessionsService {
@@ -146,6 +150,8 @@ export class AiChatSessionsService {
       throwForbiddenAccess('userId does not match the authenticated user');
     }
 
+    await this.ensureActiveSession(user.userId);
+
     const where: FindOptionsWhere<AiChatSession> = {
       requesterUserId: user.userId,
     };
@@ -160,6 +166,37 @@ export class AiChatSessionsService {
     });
 
     return sessions.map((session) => this.toSessionListItem(session));
+  }
+
+  private async ensureActiveSession(userId: string): Promise<AiChatSession> {
+    const existingActiveSession = await this.aiChatSessionRepository.findOne({
+      where: {
+        requesterUserId: userId,
+        status: AiChatSessionStatus.ACTIVE,
+      },
+      order: { createdAt: 'DESC' },
+    });
+
+    if (existingActiveSession) {
+      return existingActiveSession;
+    }
+
+    const latestSession = await this.aiChatSessionRepository.findOne({
+      where: { requesterUserId: userId },
+      order: { createdAt: 'DESC' },
+    });
+
+    const session = this.aiChatSessionRepository.create({
+      requesterUserId: userId,
+      gameRoomId: null,
+      providerConversationId: null,
+      provider: latestSession?.provider ?? DEFAULT_AI_CHAT_PROVIDER,
+      llmModel: latestSession?.llmModel ?? DEFAULT_AI_CHAT_MODEL,
+      status: AiChatSessionStatus.ACTIVE,
+      closedAt: null,
+    });
+
+    return this.aiChatSessionRepository.save(session);
   }
 
   async listMessages(
@@ -182,6 +219,11 @@ export class AiChatSessionsService {
     dto: CreateAiChatMessageDto,
   ): Promise<CreateAiChatMessageResult> {
     const session = await this.requireOwnedSession(user.userId, aiChatSessionId);
+    const sessionGameRoomId = await this.resolveActiveSessionGameRoomId(session.gameRoomId);
+    const resolvedSession =
+      sessionGameRoomId === session.gameRoomId
+        ? session
+        : ({ ...session, gameRoomId: sessionGameRoomId } as AiChatSession);
     const now = new Date();
 
     const bootstrap = await this.dataSource.transaction(async (manager) =>
@@ -197,7 +239,7 @@ export class AiChatSessionsService {
 
     const rawIntent = await this.llmIntentParser.parseUserMessage({
       message: dto.message,
-      gameRoomId: session.gameRoomId,
+      gameRoomId: resolvedSession.gameRoomId,
     });
 
     const validation = this.intentValidator.validate(rawIntent);
@@ -238,12 +280,12 @@ export class AiChatSessionsService {
 
       const { assistantHint } = validation;
       const command = await this.resolveCommandWithRoomCreateContext(
-        session,
+        resolvedSession,
         aiChatSessionId,
         validation.command,
         dto.message,
       );
-      const execution = await this.executeCommand(user, session, command);
+      const execution = await this.executeCommand(user, resolvedSession, command);
 
       if (execution.requestStatus === AiChatRequestStatus.FAILED) {
         return this.finalizeFailedCommandTurn(
@@ -317,6 +359,25 @@ export class AiChatSessionsService {
         commandResult,
       };
     });
+  }
+
+  private async resolveActiveSessionGameRoomId(
+    gameRoomId: string | null,
+  ): Promise<string | null> {
+    if (!gameRoomId) {
+      return null;
+    }
+
+    const room = await this.dataSource.getRepository(GameRoomEntity).findOne({
+      where: { id: gameRoomId },
+      select: { id: true, status: true },
+    });
+
+    if (room?.status === GameRoomStatus.FINISHED) {
+      return null;
+    }
+
+    return gameRoomId;
   }
 
   private async persistUnsupportedRequestHistory(
