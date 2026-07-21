@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { AiChatRequestType } from '../../shared/enums/ai-chat.enum';
 import type { AiChatCommandDto } from '../../shared/dto/ai-chat-command.dto';
@@ -8,11 +8,17 @@ import {
   buildSafeStaticFollowUpContent,
   sanitizeFollowUpContent,
 } from '../../modules/ai-chat-sessions/intent/ai-chat-assistant-content';
+import {
+  LLM_CHAT_COMPLETIONS_CLIENT,
+  type LlmChatCompletionsClientPort,
+} from './llm-chat-completions.port';
 import type {
   LlmFollowUpGeneratorPort,
   LlmFollowUpInput,
   LlmFollowUpResult,
 } from './llm-follow-up.port';
+
+const DEFAULT_LLM_MODEL = 'gpt-5_4-mini-2026-03-17';
 
 @Injectable()
 export class LlmFollowUpService implements LlmFollowUpGeneratorPort {
@@ -21,6 +27,8 @@ export class LlmFollowUpService implements LlmFollowUpGeneratorPort {
   constructor(
     private readonly configService: ConfigService,
     private readonly promptTemplateService: PromptTemplateService,
+    @Inject(LLM_CHAT_COMPLETIONS_CLIENT)
+    private readonly chatCompletionsClient: LlmChatCompletionsClientPort,
   ) {}
 
   async generateCommandFollowUp(input: LlmFollowUpInput): Promise<LlmFollowUpResult> {
@@ -43,7 +51,7 @@ export class LlmFollowUpService implements LlmFollowUpGeneratorPort {
     const staticMetadata = buildSafeStaticFollowUpContent(input.command).metadata;
 
     try {
-      const llmContent = await this.generateWithLlmApi(renderedPrompt, input.userMessage, apiKey);
+      const llmContent = await this.generateWithLlmApi(renderedPrompt, input.userMessage);
       const sanitized = sanitizeFollowUpContent(llmContent);
       if (!sanitized) {
         return this.toStaticResult(input.command, templateKey, 'static_fallback');
@@ -137,48 +145,22 @@ export class LlmFollowUpService implements LlmFollowUpGeneratorPort {
   private async generateWithLlmApi(
     systemPrompt: string,
     userMessage: string,
-    apiKey: string,
   ): Promise<string> {
-    const baseUrl = this.configService.get<string>('llm.baseUrl') ?? 'https://api.openai.com/v1';
-    const model = this.configService.get<string>('llm.model') ?? 'gpt-4o';
-    const timeoutMs = this.configService.get<number>('llm.timeoutMs') ?? 30000;
+    const model = this.configService.get<string>('llm.model') ?? DEFAULT_LLM_MODEL;
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    const { content } = await this.chatCompletionsClient.createCompletion({
+      model,
+      temperature: 0.3,
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: userMessage },
+      ],
+    });
 
-    try {
-      const response = await fetch(`${baseUrl.replace(/\/$/, '')}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model,
-          temperature: 0.3,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: userMessage },
-          ],
-        }),
-        signal: controller.signal,
-      });
-
-      if (!response.ok) {
-        throw new Error(`LLM HTTP ${response.status}`);
-      }
-
-      const body = (await response.json()) as {
-        choices?: Array<{ message?: { content?: string } }>;
-      };
-      const content = body.choices?.[0]?.message?.content?.trim();
-      if (!content) {
-        throw new Error('LLM empty follow-up response');
-      }
-      return content;
-    } finally {
-      clearTimeout(timeout);
+    const trimmed = content.trim();
+    if (!trimmed) {
+      throw new Error('LLM empty follow-up response');
     }
+    return trimmed;
   }
-
 }

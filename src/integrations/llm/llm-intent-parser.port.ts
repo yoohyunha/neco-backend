@@ -8,9 +8,16 @@ export interface LlmIntentRawResponse {
   assistantHint?: string;
 }
 
+export interface LlmIntentPriorMessage {
+  role: 'system' | 'user' | 'assistant';
+  content: string;
+}
+
 export interface LlmIntentParseInput {
   message: string;
   gameRoomId?: string | null;
+  /** Up to five prior session messages, oldest → newest. Must not include the current message. */
+  priorMessages?: LlmIntentPriorMessage[];
 }
 
 export interface LlmIntentParserPort {

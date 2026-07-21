@@ -1,8 +1,6 @@
 # AGENTS.md
 
-Use the smallest safe change that satisfies the user's goal. Let the task context determine how much planning, clarification, implementation, retrieval, and verification are needed.
-
-Prefer outcome-first execution over process-heavy behavior. Define the goal, make the smallest safe change, verify what matters, then stop.
+Use the smallest safe change that satisfies the user's goal. Prefer outcome-first execution: define the goal, change only what is needed, verify what matters, then stop.
 
 ## 1. Collaboration style
 
@@ -14,173 +12,141 @@ When ambiguity is low-risk, make a conservative assumption, state it briefly if 
 
 When disagreeing with a requested approach, explain the tradeoff and suggest the simpler or safer alternative.
 
-## 2. Understand the task before changing code
+## 2. Classify, then scope the work
 
 Before editing, classify the task:
 
-- trivial change: typo, copy, formatting, config value, small documentation update
+- trivial: typo, copy, formatting, config value, small doc tweak
 - bug fix: existing behavior is wrong
-- feature change: new behavior is requested
-- refactor: structure changes without intended behavior change
-- risky change: auth, security, data, schema, migration, public API, payment, permissions, privacy, or destructive operations
+- feature: new behavior is requested
+- refactor: structure change without intended behavior change
+- risky: auth, security, data, schema, migration, public API, permissions, privacy, or destructive operations
 
-Use the classification to choose the appropriate level of planning, implementation, and verification.
+Then keep the change set proportional to that class. For multi-step or risky work, give a one- or two-sentence approach update before editing. Do not narrate every command.
 
-For multi-step, risky, or tool-heavy tasks, start with a brief user-visible update that states the intended approach. Keep it to one or two sentences. Do not narrate every command or low-level operation.
+### Default reading order (incremental work)
 
-### Spec-first server development
+Read the **minimum** needed to implement safely:
 
-For backend and server-facing work, read the relevant files under `docs/specs/` before changing code or writing new specs.
+1. The user request (and the specific plan **task** if they pointed at a plan).
+2. The local code paths you will change (search/open those files first).
+3. Nearby tests for the same behavior.
 
-- Treat `docs/specs/` as the implementation source of truth.
-- Use the smallest spec set needed for the task.
-- If implementation ideas conflict with the specs, do not silently optimize around the specs. Resolve against the documented policy first.
+Do **not** start by reading the full `docs/specs/` set, `docs/etc/`, `docs/plans/README.md`, `docs/plans/common-sequential-plan.md`, or `docs/implementaion-logs/**` unless:
+
+- the user explicitly asks you to, or
+- the assigned plan task’s **Read first** list says to, or
+- you hit a real conflict or ambiguity in API contracts, schema, auth, or state transitions that code alone cannot resolve.
+
+If a focused plan is self-contained (inline decisions, schema, and file lists), treat that plan task as the source of truth for the task and stay inside its read list.
+
+### Specs are escalation, not the default
+
+`docs/specs/` remains the conflict authority for backend contracts, but it is **not** required reading for every small change.
+
+Open a spec only when:
+
+- the user cites it,
+- a plan task requires it,
+- or code/plan disagree on a public contract and you need precedence.
+
+When specs and code differ:
+
+1. Name the conflicting field, status, flow, or rule.
+2. Prefer the higher-priority contract in `docs/specs/00-overview.md` if you must open specs.
+3. If still unclear, stop and ask—do not guess.
+
+### Spec routing (only when escalating)
+
+- Purpose / scope: `docs/specs/00-overview.md`
+- Architecture / infra: `docs/specs/01-architecture.md`
+- Domain invariants: `docs/specs/02-domain-model.md`
+- Modules: `docs/specs/03-modules.md`
+- Persistence: `docs/specs/04-data-model.md`
+- HTTP / WebSocket contracts: `docs/specs/05-api-and-realtime.md`
+- Lifecycle flows: `docs/specs/06-gameplay-lifecycle.md`
+- Docker / LLM / AI authority: `docs/specs/07-integrations-and-ai.md`
+- Security / testing / delivery: `docs/specs/08-security-testing-and-delivery.md`
 
 ## 3. Success criteria
 
 A task is complete when:
 
 - The requested behavior is implemented with the smallest safe change.
-- The change is scoped to the user's goal.
-- Relevant validation has passed, or the reason validation could not be run is clearly stated.
-- Any assumption, blocker, skipped check, or follow-up risk is called out.
+- The change is scoped to the user’s goal (or the single assigned plan task).
+- Relevant validation has passed, or the reason it could not run is stated.
+- Assumptions, blockers, skipped checks, or follow-up risks are called out.
 - The final response summarizes what changed and how it was verified.
 
-Do not expand the task to improve unrelated code, add optional features, or perform speculative cleanup.
+Do not expand into optional features, speculative cleanup, or the next plan task unless asked.
 
-## 4. Choose the smallest safe implementation
+## 4. Smallest safe implementation
 
 Default to direct code.
 
-Add abstraction only when justified by at least one of the following:
+Add abstraction only when justified by existing duplication, clearer domain behavior, materially better testability, or an established local pattern.
 
-- current duplication exists
-- domain behavior becomes clearer
-- testability materially improves
-- the existing codebase already uses the abstraction pattern locally
+Avoid unrequested configuration, generic frameworks for one-off behavior, broad rewrites, and error handling for impossible paths.
 
-Do not add speculative flexibility for future requirements.
+## 5. Keep the diff local
 
-Avoid:
+Change only the files and lines needed.
 
-- features beyond what was requested
-- configuration options that were not requested
-- generic frameworks for one-off behavior
-- broad rewrites when a local change is enough
-- error handling for scenarios that cannot realistically occur in the current design
+Match local style, naming, formatting, tests, and error-handling conventions.
 
-Before expanding scope, check whether the extra work is necessary for the stated goal. If not, leave it out.
+Adjacent cleanup is allowed only when your change would otherwise leave the code inconsistent, unsafe, untyped, failing tests, or hard to verify.
 
-## 5. Keep the diff local and reviewable
-
-Change only the files and lines needed for the requested behavior.
-
-Match local style, naming, formatting, file organization, testing patterns, and error-handling conventions, even if a different style would be preferable in isolation.
-
-Adjacent cleanup is allowed only when your change would otherwise leave the code inconsistent, unsafe, untyped, failing tests, or difficult to verify.
-
-When your own change creates unused imports, variables, functions, files, or dead branches, remove them.
-
-If you notice unrelated issues, mention them instead of fixing them.
-
-Every changed line should be traceable to the user's request, required validation, or cleanup caused by your own change.
+Remove unused artifacts your change introduces. Mention unrelated issues instead of fixing them.
 
 ## 6. Retrieval budget
 
-Use existing repository context first.
+Use repository code first. Stop retrieving once you can implement or answer correctly.
 
-Read or search additional sources only when needed to answer or implement safely.
+Do not browse docs to improve phrasing or collect nonessential context.
 
-Retrieve more information when:
-
-- the task depends on a specific library, framework, API, version, error message, or external behavior
-- the repository does not contain enough evidence to make the change safely
-- a specific document, URL, issue, ticket, design note, or code artifact must be read
-- the user asks for current, source-backed, or exhaustive information
-- the answer would otherwise rely on an unsupported factual claim
-
-Stop retrieving once there is enough evidence to implement or answer the core request correctly.
-
-Do not keep searching to improve phrasing, collect nonessential examples, or justify generic statements.
-
-Prefer authoritative sources such as official documentation, repository code, project docs, specs, or directly relevant issues.
-
-### Spec routing
-
-When the task touches one of the following areas, read these files first:
-
-- Project purpose, domain terms, or scope:
-  - `docs/specs/00-overview.md`
-- System boundaries, runtime architecture, infrastructure assumptions, or external services:
-  - `docs/specs/01-architecture.md`
-- Domain entities, business concepts, or invariants:
-  - `docs/specs/02-domain-model.md`
-- Module ownership, responsibilities, dependencies, and layering:
-  - `docs/specs/03-modules.md`
-- Database schema, persistence rules, indexes, or durable vs ephemeral state:
-  - `docs/specs/04-data-model.md`
-- HTTP API, WebSocket contracts, enums, error codes, auth exceptions, or payload expectations:
-  - `docs/specs/05-api-and-realtime.md`
-- User flows, sequence behavior, room lifecycle, turn lifecycle, timeout, or game progression:
-  - `docs/specs/06-gameplay-lifecycle.md`
-- Docker runtime, Redis, MQ, LLM, hint policy, or AI authority boundaries:
-  - `docs/specs/07-integrations-and-ai.md`
-- Security rules, reconnection policy, testing scope, milestones, or conflict handling:
-  - `docs/specs/08-security-testing-and-delivery.md`
+Prefer: user request → assigned plan task → code/tests → (only if needed) a single conflicting spec.
 
 ## 7. Verification proportional to risk
 
-Run the narrowest useful validation available.
+Run the narrowest useful check:
 
-Choose validation based on task type:
+- trivial: light check if available
+- bug fix: regression test preferred
+- feature: new behavior + important edges
+- refactor: behavior check when practical
+- risky: targeted tests plus typecheck / lint / migration as relevant
 
-- trivial change: run only a lightweight relevant check if available
-- bug fix: prefer a regression test that reproduces the bug, then make it pass
-- feature change: test the new behavior and important edge cases
-- refactor: verify behavior before and after when practical
-- risky change: run targeted tests plus typecheck, lint, build, migration check, or smoke test as relevant
+Prefer:
 
-For coding tasks, prefer these checks when applicable:
+```bash
+pnpm test -- <path-or-pattern>
+pnpm typecheck
+pnpm lint
+```
 
-- targeted unit tests for changed behavior
-- integration tests for affected flows
-- type checks
-- lint checks
-- build checks for affected packages
-- minimal smoke tests when full validation is too expensive
+Never claim validation passed if it was not run.
 
-If full validation is expensive, unavailable, or unnecessary, run the smallest check that gives useful confidence.
+Do not delete, skip, weaken, or rewrite failing tests to force green unless the user explicitly approves. If a test is obsolete, explain and ask before changing it.
 
-If validation cannot be run, state exactly:
-
-- what was not run
-- why it was not run
-- the next best check the user should run
-
-Never claim validation passed if it was not actually run.
-
-Do not delete, disable, skip, weaken, or rewrite failing tests merely to make the test suite pass unless the user explicitly approves that change. If a test is obsolete or incorrect, explain why and ask before removing or weakening it.
+If unrelated tests fail, report them; do not fix unless asked.
 
 ## 8. Stop rules
 
-Stop and respond when the requested goal is met and the narrowest useful validation has passed.
+Stop when the requested goal (or single plan task) is done and the narrowest useful validation has passed.
 
-Do not continue modifying code for optional polish, unrelated cleanup, broader refactors, extra abstractions, or speculative future requirements.
+Do not continue into polish, extra refactors, or the next task without a user request.
 
-Stop and ask only when missing information materially affects correctness, data safety, security, public API behavior, user-visible behavior, or irreversible work.
+Stop and ask only for material correctness, safety, security, public API, user-visible, or irreversible ambiguity.
 
-If blocked by missing dependencies, failing environment setup, unavailable credentials, unclear requirements, or external service access, report the blocker and the next best path.
+### Plan-driven work
 
-If tests fail for reasons unrelated to your change, do not fix unrelated failures unless asked. Report the failure and explain why it appears unrelated.
+When the user assigns a plan under `docs/plans/`:
 
-### Conflict policy
-
-When specs and code differ, do not make an arbitrary judgment.
-
-1. Identify the conflicting file, field, status, flow, or rule precisely.
-2. Apply the precedence defined in `docs/specs/00-overview.md`.
-3. If the higher-priority spec is clear, implement to that spec and mention the mismatch in the final response.
-4. If the conflict is not resolved by precedence, stop and ask for clarification rather than guessing.
+- Execute **one task** at a time unless they say otherwise.
+- Follow that task’s **Read first** / **Do not read** lists when present.
+- Create **one commit per completed task** when the plan requires it (or when the user asks to commit).
+- Write `docs/implementaion-logs/**` **only when the user explicitly asks**.
+- Do not push unless asked.
 
 ## 9. Final response format
 
@@ -188,54 +154,34 @@ For completed coding tasks, respond concisely with:
 
 - What changed
 - How it was verified
-- Any assumptions, skipped checks, blockers, or follow-up risks
+- Assumptions, skipped checks, blockers, or follow-up risks
 
-Do not include large code dumps unless requested.
-
-Do not over-explain implementation details that are obvious from the diff.
-
-If no files were changed, clearly state that.
+No large code dumps unless requested. If nothing changed, say so.
 
 ## 10. Project commands
 
-Current repository state:
+Package manager: `pnpm`. Runtime: Node.js. Framework: NestJS. Source: `src/`.
 
-- There is no `package.json`, `src/`, or runnable application scaffold yet.
-- Treat the repository as a documentation-first planning repository until the backend scaffold is added.
-
-Current commands:
-
-- Install: not available yet
-- Dev: not available yet
-- Test: not available yet
-- Targeted test: not available yet
-- Typecheck: not available yet
-- Lint: not available yet
-- Build: not available yet
-
-Planned commands after the NestJS backend is scaffolded:
-
-- Install: `pnpm install`
-- Dev: `pnpm dev`
-- Test: `pnpm test`
-- Targeted test: `pnpm test -- <path-or-pattern>`
-- Typecheck: `pnpm typecheck`
-- Lint: `pnpm lint`
-- Build: `pnpm build`
+```bash
+pnpm install
+pnpm dev
+pnpm test
+pnpm test -- <path-or-pattern>
+pnpm typecheck
+pnpm lint
+pnpm build
+pnpm migration:run
+```
 
 Use the most specific command that validates the changed behavior.
 
 ## 11. Project-specific notes
 
-- Package manager: none installed yet; planned package manager is `pnpm`
-- Runtime: source code not scaffolded yet; planned runtime is Node.js
-- Framework: source code not scaffolded yet; planned framework is NestJS
-- Test framework: not configured yet
-- Formatting: no formatter config present yet
-- Linting: no linter config present yet
-- Main source directory: not present yet; planned directory is `src/`
-- Main test directory: not present yet; likely module-local tests under `src/modules/**` plus integration coverage to be added with the scaffold
-- Environment variables: not defined in repository yet; expected future secrets include JWT, PostgreSQL, Redis, LLM, and runtime integration settings
-- Deployment/build target: currently documentation only; planned target is Docker Compose with `app`, `postgres`, and `redis`
+- LLM integration lives under `src/integrations/llm/` and must stay behind that boundary (domain code does not call vendor SDKs directly).
+- AI may interpret, explain, and assist; the server owns authoritative game state.
+- Env samples: `.env.example` (JWT, Postgres, Redis, LLM, runtime).
+- Docker Compose target: `app`, `postgres`, `redis`.
+- Focused follow-up plans may be self-contained; prefer them over re-reading the whole worker/common plan set for small LLM or mission slices.
+- Commit message format for this repo: `type(scope):` Korean noun-phrase subject; see `.cursor/rules/commit-message-rule.mdc` when committing.
 
 Follow existing local conventions over generic preferences.

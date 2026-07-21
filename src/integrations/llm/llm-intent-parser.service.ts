@@ -1,7 +1,11 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PROMPT_TEMPLATE_KEY } from '../../modules/prompt-template/constants/prompt-template-key.constants';
 import { PromptTemplateService } from '../../modules/prompt-template/prompt-template.service';
+import {
+  LLM_CHAT_COMPLETIONS_CLIENT,
+  type LlmChatCompletionsClientPort,
+} from './llm-chat-completions.port';
 import type {
   LlmIntentParseInput,
   LlmIntentParserPort,
@@ -27,6 +31,8 @@ payload fields by type:
 - GAME_START: gameRoomId
 If the message is not a lobby command, set requestType to null and confidence to low.`;
 
+const DEFAULT_LLM_MODEL = 'gpt-5_4-mini-2026-03-17';
+
 @Injectable()
 export class LlmIntentParserService implements LlmIntentParserPort {
   private readonly logger = new Logger(LlmIntentParserService.name);
@@ -34,6 +40,8 @@ export class LlmIntentParserService implements LlmIntentParserPort {
   constructor(
     private readonly configService: ConfigService,
     private readonly promptTemplateService: PromptTemplateService,
+    @Inject(LLM_CHAT_COMPLETIONS_CLIENT)
+    private readonly chatCompletionsClient: LlmChatCompletionsClientPort,
   ) {}
 
   async parseUserMessage(input: LlmIntentParseInput): Promise<LlmIntentRawResponse> {
@@ -43,70 +51,44 @@ export class LlmIntentParserService implements LlmIntentParserPort {
     }
 
     try {
-      return await this.parseWithLlmApi(input, apiKey);
+      return await this.parseWithLlmApi(input);
     } catch {
       this.logger.warn('LLM intent parse failed; falling back to heuristics');
       return this.parseWithHeuristics(input.message);
     }
   }
 
-  private async parseWithLlmApi(
-    input: LlmIntentParseInput,
-    apiKey: string,
-  ): Promise<LlmIntentRawResponse> {
-    const baseUrl = this.configService.get<string>('llm.baseUrl') ?? 'https://api.openai.com/v1';
-    const model = this.configService.get<string>('llm.model') ?? 'gpt-4o';
-    const timeoutMs = this.configService.get<number>('llm.timeoutMs') ?? 30000;
+  private async parseWithLlmApi(input: LlmIntentParseInput): Promise<LlmIntentRawResponse> {
+    const model = this.configService.get<string>('llm.model') ?? DEFAULT_LLM_MODEL;
 
     const userContent = JSON.stringify({
       message: input.message,
       gameRoomId: input.gameRoomId ?? null,
     });
 
-    const controller = new AbortController();
-    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    const priorMessages = (input.priorMessages ?? []).map((message) => ({
+      role: message.role,
+      content: message.content,
+    }));
 
-    try {
-      const response = await fetch(`${baseUrl.replace(/\/$/, '')}/chat/completions`, {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${apiKey}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          model,
-          temperature: 0,
-          response_format: { type: 'json_object' },
-          messages: [
-            { role: 'system', content: this.resolveIntentSystemPrompt() },
-            { role: 'user', content: userContent },
-          ],
-        }),
-        signal: controller.signal,
-      });
+    const { content } = await this.chatCompletionsClient.createCompletion({
+      model,
+      temperature: 0,
+      responseFormat: { type: 'json_object' },
+      messages: [
+        { role: 'system', content: this.resolveIntentSystemPrompt() },
+        ...priorMessages,
+        { role: 'user', content: userContent },
+      ],
+    });
 
-      if (!response.ok) {
-        throw new Error(`LLM HTTP ${response.status}`);
-      }
-
-      const body = (await response.json()) as {
-        choices?: Array<{ message?: { content?: string } }>;
-      };
-      const content = body.choices?.[0]?.message?.content;
-      if (!content) {
-        throw new Error('LLM empty response');
-      }
-
-      const parsed = JSON.parse(content) as LlmIntentRawResponse;
-      return {
-        requestType: parsed.requestType ?? null,
-        confidence: parsed.confidence,
-        payload: parsed.payload ?? {},
-        assistantHint: parsed.assistantHint,
-      };
-    } finally {
-      clearTimeout(timeout);
-    }
+    const parsed = JSON.parse(content) as LlmIntentRawResponse;
+    return {
+      requestType: parsed.requestType ?? null,
+      confidence: parsed.confidence,
+      payload: parsed.payload ?? {},
+      assistantHint: parsed.assistantHint,
+    };
   }
 
   resolveIntentSystemPrompt(): string {

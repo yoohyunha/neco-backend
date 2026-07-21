@@ -35,3 +35,26 @@ export enum AiRealtimeEventType {
   MISSION_FEEDBACK = 'MISSION_FEEDBACK',
   MISSION_RESULT = 'MISSION_RESULT',
 }
+
+export enum AiGameSessionStatus {
+  ACTIVE = 'ACTIVE',
+  CLOSED = 'CLOSED',
+  ERROR = 'ERROR',
+}
+
+export enum AiGameRequestType {
+  DEBUG = 'DEBUG',
+  JUDGE = 'JUDGE',
+}
+
+export enum AiGameRequestStatus {
+  RECEIVED = 'RECEIVED',
+  COMPLETED = 'COMPLETED',
+  FAILED = 'FAILED',
+}
+
+export enum AiRealtimeDeliveryStatus {
+  PENDING = 'PENDING',
+  SENT = 'SENT',
+  FAILED = 'FAILED',
+}

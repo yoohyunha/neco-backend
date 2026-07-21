@@ -6,7 +6,7 @@ import { GameRoomMissionsService } from '@modules/game-room-missions/service/gam
 import { GameRoomEntity } from '@modules/game-rooms/entity/game-room.entity';
 import { GameStartFlowService } from '@modules/game-rooms/service/game-start-flow.service';
 import { GameRoomsService } from '@modules/game-rooms/service/game-rooms.service';
-import { DataSource, FindOptionsWhere, In, Repository } from 'typeorm';
+import { DataSource, FindOptionsWhere, In, Not, Repository } from 'typeorm';
 import type { AuthenticatedUser } from '../../common/types/authenticated-user.type';
 import { toSeoulIso } from '../../common/utils/date.util';
 import {
@@ -16,6 +16,7 @@ import {
 import {
   LLM_INTENT_PARSER,
   type LlmIntentParserPort,
+  type LlmIntentPriorMessage,
   type LlmIntentRawResponse,
 } from '../../integrations/llm/llm-intent-parser.port';
 import {
@@ -113,7 +114,8 @@ const DEFAULT_ROOM_CREATE_SETTINGS = {
   maxParticipants: 4,
 } as const;
 const DEFAULT_AI_CHAT_PROVIDER = 'openai';
-const DEFAULT_AI_CHAT_MODEL = 'gpt-4o';
+const DEFAULT_AI_CHAT_MODEL = 'gpt-5_4-mini-2026-03-17';
+const INTENT_PRIOR_MESSAGE_LIMIT = 5;
 
 @Injectable()
 export class AiChatSessionsService {
@@ -237,9 +239,15 @@ export class AiChatSessionsService {
       ),
     );
 
+    const priorMessages = await this.loadPriorMessagesForIntent(
+      aiChatSessionId,
+      bootstrap.savedUserMessage.id,
+    );
+
     const rawIntent = await this.llmIntentParser.parseUserMessage({
       message: dto.message,
       gameRoomId: resolvedSession.gameRoomId,
+      priorMessages,
     });
 
     const validation = this.intentValidator.validate(rawIntent);
@@ -378,6 +386,39 @@ export class AiChatSessionsService {
     }
 
     return gameRoomId;
+  }
+
+  private async loadPriorMessagesForIntent(
+    aiChatSessionId: string,
+    currentMessageId: string,
+  ): Promise<LlmIntentPriorMessage[]> {
+    const recentPriorDesc = await this.aiChatMessageRepository.find({
+      where: {
+        aiChatSessionId,
+        id: Not(currentMessageId),
+      },
+      order: { createdAt: 'DESC' },
+      take: INTENT_PRIOR_MESSAGE_LIMIT,
+    });
+
+    return recentPriorDesc.reverse().map((message) => this.toIntentPriorMessage(message));
+  }
+
+  private toIntentPriorMessage(message: AiChatMessage): LlmIntentPriorMessage {
+    return {
+      role: this.toIntentChatRole(message.senderType),
+      content: message.content,
+    };
+  }
+
+  private toIntentChatRole(senderType: string): LlmIntentPriorMessage['role'] {
+    if (senderType === AiChatMessageSenderType.ASSISTANT) {
+      return 'assistant';
+    }
+    if (senderType === AiChatMessageSenderType.SYSTEM) {
+      return 'system';
+    }
+    return 'user';
   }
 
   private async persistUnsupportedRequestHistory(

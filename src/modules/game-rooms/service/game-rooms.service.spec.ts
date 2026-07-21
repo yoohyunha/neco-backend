@@ -5,10 +5,12 @@ import { GameRoomMissionsService } from '@modules/game-room-missions/service/gam
 import { GameRoomParticipantEntity } from '@modules/game-room-participants/entity/game-room-participant.entity';
 import { TurnsService } from '@modules/turns/service/turns.service';
 import { AiChatSession } from '@modules/ai-chat-sessions/entity/ai-chat-session.entity';
+import { AiGameSession } from '@modules/ai-game-sessions/entity/ai-game-session.entity';
 import { GameRoomsService } from './game-rooms.service';
 import { GameRoomEntity } from '../entity/game-room.entity';
 import {
   AiChatSessionStatus,
+  AiGameSessionStatus,
   GameRoomParticipantMembershipStatus,
   GameRoomParticipantRole,
   GameRoomStatus,
@@ -38,6 +40,7 @@ describe('GameRoomsService', () => {
   let manager: { getRepository: jest.Mock; query: jest.Mock };
   let dataSource: { transaction: jest.Mock; getRepository: jest.Mock };
   let aiChatSessionRepository: { update: jest.Mock };
+  let aiGameSessionRepository: { update: jest.Mock };
 
   beforeEach(() => {
     roomRepository = {
@@ -69,6 +72,10 @@ describe('GameRoomsService', () => {
       update: jest.fn(),
     };
 
+    aiGameSessionRepository = {
+      update: jest.fn(),
+    };
+
     manager = {
       getRepository: jest.fn((entity) => {
         if (entity === GameRoomEntity) {
@@ -76,6 +83,9 @@ describe('GameRoomsService', () => {
         }
         if (entity === AiChatSession) {
           return aiChatSessionRepository;
+        }
+        if (entity === AiGameSession) {
+          return aiGameSessionRepository;
         }
 
         return participantRepository;
@@ -594,6 +604,15 @@ describe('GameRoomsService', () => {
       },
       expect.objectContaining({
         status: AiChatSessionStatus.CLOSED,
+      }),
+    );
+    expect(aiGameSessionRepository.update).toHaveBeenCalledWith(
+      {
+        gameRoomId: 'room-1',
+        status: AiGameSessionStatus.ACTIVE,
+      },
+      expect.objectContaining({
+        status: AiGameSessionStatus.CLOSED,
       }),
     );
   });

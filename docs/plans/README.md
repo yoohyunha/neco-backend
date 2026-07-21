@@ -33,6 +33,7 @@ This includes:
 ### Focused follow-up plans
 
 - Calculator mission template, runtime, and step judging: [`calculator-mission-template-runtime-judging-plan.md`](./calculator-mission-template-runtime-judging-plan.md)
+- OpenAI Chat Completions hardening and mission feedback: [`openai-llm-integration-plan.md`](./openai-llm-integration-plan.md) — self-contained; agents should follow that file’s per-task **Read first** list and skip `docs/specs/` unless the task says otherwise
 
 ## Parallelization Rules
 
