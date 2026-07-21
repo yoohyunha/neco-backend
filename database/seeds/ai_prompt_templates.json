@@ -75,5 +75,20 @@
       "missionTemplateTitle": "optional"
     },
     "isActive": true
+  },
+  {
+    "templateKey": "mission_feedback",
+    "templateName": "미션 판정 피드백",
+    "purpose": "mission_feedback",
+    "templateText": "You write one short Korean feedback sentence for a coding mission step after server-side judging.\nJudge status (authoritative, do not change): {{judgeStatus}}\nStep id: {{stepId}}\nStep order: {{stepOrder}}\nTruncated stdout: {{stdout}}\nTruncated stderr: {{stderr}}\nDetected issue summaries: {{detectedIssueSummaries}}\nReturn only one short helpful Korean sentence. Do not invent a new judge status, pass/fail decision, strike count, or JSON.",
+    "variablesJson": {
+      "judgeStatus": "required",
+      "stepId": "optional",
+      "stepOrder": "optional",
+      "stdout": "optional",
+      "stderr": "optional",
+      "detectedIssueSummaries": "optional"
+    },
+    "isActive": true
   }
 ]

@@ -6,6 +6,7 @@ export const PROMPT_TEMPLATE_KEY = {
   CHAT_FOLLOWUP_USER_INVITE_DENY: 'chat_followup_user_invite_deny',
   CHAT_FOLLOWUP_GAME_START: 'chat_followup_game_start',
   CHAT_FOLLOWUP_ROOM_SUMMARY: 'chat_followup_room_summary',
+  MISSION_FEEDBACK: 'mission_feedback',
 } as const;
 
 export type PromptTemplateKey =
