@@ -87,7 +87,8 @@ export class AuthService {
       }
     }
 
-    const llmModel = this.configService.get<string>('llm.model') ?? 'gpt-4o';
+    const llmModel =
+      this.configService.get<string>('llm.model') ?? 'gpt-5_4-mini-2026-03-17';
 
     try {
       return await this.dataSource.transaction(async (manager) => {

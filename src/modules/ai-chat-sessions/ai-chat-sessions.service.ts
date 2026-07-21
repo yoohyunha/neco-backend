@@ -113,7 +113,7 @@ const DEFAULT_ROOM_CREATE_SETTINGS = {
   maxParticipants: 4,
 } as const;
 const DEFAULT_AI_CHAT_PROVIDER = 'openai';
-const DEFAULT_AI_CHAT_MODEL = 'gpt-4o';
+const DEFAULT_AI_CHAT_MODEL = 'gpt-5_4-mini-2026-03-17';
 
 @Injectable()
 export class AiChatSessionsService {
