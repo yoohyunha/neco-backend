@@ -12,7 +12,7 @@ import { DefaultRealtimeTurnSubmitService } from './realtime-defaults.service';
 import { RealtimeEventSupportService } from './realtime-event-support.service';
 
 describe('DefaultRealtimeTurnSubmitService', () => {
-  it('ignores duplicate submit conflicts without publishing lifecycle events', async () => {
+  it('rethrows duplicate submit conflicts without publishing lifecycle events', async () => {
     const turnsService: jest.Mocked<Pick<TurnsService, 'submitTurn'>> = {
       submitTurn: jest.fn().mockRejectedValue(
         new ConflictException({
@@ -39,7 +39,11 @@ describe('DefaultRealtimeTurnSubmitService', () => {
         occurredAt: '2026-05-27T10:00:00+09:00',
         files: [],
       }),
-    ).resolves.toBeUndefined();
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        code: 'TURN_NOT_IN_PROGRESS',
+      }),
+    });
 
     expect(realtimeEventSupportService.publishTurnLifecycleResult).not.toHaveBeenCalled();
   });
