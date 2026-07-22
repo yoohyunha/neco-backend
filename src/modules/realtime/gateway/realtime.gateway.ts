@@ -1,4 +1,5 @@
 import {
+  ConflictException,
   ForbiddenException,
   Inject,
   Logger,
@@ -187,6 +188,12 @@ export class RealtimeGateway implements OnGatewayDisconnect {
         currentTurnState.currentTurnUserId !== session.userId ||
         payload.userId !== session.userId
       ) {
+        await this.resyncTurnStateForLateSubmit(
+          client,
+          session.gameRoomId,
+          session.userId,
+          payload.turnId,
+        );
         return;
       }
 
@@ -204,6 +211,19 @@ export class RealtimeGateway implements OnGatewayDisconnect {
       });
 
     } catch (error) {
+      if (
+        error instanceof ConflictException &&
+        this.getConflictCode(error) === 'TURN_NOT_IN_PROGRESS'
+      ) {
+        await this.resyncTurnStateForLateSubmit(
+          client,
+          session.gameRoomId,
+          session.userId,
+          payload.turnId,
+        );
+        return;
+      }
+
       const message = error instanceof Error ? error.message : 'unknown turn-submit error';
       this.logger.warn(`Failed to process turn-submit: ${message}`);
     }
@@ -481,6 +501,46 @@ export class RealtimeGateway implements OnGatewayDisconnect {
     });
   }
 
+  private async resyncTurnStateForLateSubmit(
+    client: WebSocket,
+    gameRoomId: string,
+    userId: string,
+    previousTurnId: string,
+  ): Promise<void> {
+    try {
+      const joinRoomState = await this.roomAccessService.getJoinRoomState({
+        gameRoomId,
+        userId,
+      });
+      const turnState = this.extractFullTurnState(
+        joinRoomState.initialState.gameState,
+      );
+
+      if (turnState) {
+        this.sendEvent(client, REALTIME_EVENT.TURN_CHANGED, {
+          gameRoomId,
+          previousTurnId,
+          missionState: joinRoomState.initialState.missionState,
+          turnState,
+          nextPlayerId: turnState.currentPlayerId,
+          turnSnapshotId: turnState.turnId,
+          occurredAt: joinRoomState.initialState.occurredAt,
+        });
+        return;
+      }
+
+      this.sendEvent(
+        client,
+        REALTIME_EVENT.ROOM_PARTICIPANTS_UPDATED,
+        joinRoomState.initialState,
+      );
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'unknown late submit resync error';
+      this.logger.warn(`Failed to resync late submit state: ${message}`);
+    }
+  }
+
   private extractTurnState(gameState: Record<string, unknown>): {
     turnId: string;
     currentPlayerId: string;
@@ -502,5 +562,52 @@ export class RealtimeGateway implements OnGatewayDisconnect {
       turnId: maybeTurnId,
       currentPlayerId: maybeCurrentPlayerId,
     };
+  }
+
+  private extractFullTurnState(
+    gameState: Record<string, unknown>,
+  ): TurnChangedEvent['turnState'] | null {
+    const turnState = gameState.turnState;
+
+    if (!turnState || typeof turnState !== 'object') {
+      return null;
+    }
+
+    const candidate = turnState as Record<string, unknown>;
+
+    if (
+      !this.hasText(candidate.turnId) ||
+      typeof candidate.turnNumber !== 'number' ||
+      !this.hasText(candidate.currentPlayerId) ||
+      !this.hasText(candidate.startedAt) ||
+      !this.hasText(candidate.deadlineAt) ||
+      typeof candidate.timeLimitSeconds !== 'number' ||
+      typeof candidate.remainingTimeSeconds !== 'number' ||
+      !this.hasText(candidate.status)
+    ) {
+      return null;
+    }
+
+    return {
+      turnId: candidate.turnId,
+      turnNumber: candidate.turnNumber,
+      currentPlayerId: candidate.currentPlayerId,
+      startedAt: candidate.startedAt,
+      deadlineAt: candidate.deadlineAt,
+      timeLimitSeconds: candidate.timeLimitSeconds,
+      remainingTimeSeconds: candidate.remainingTimeSeconds,
+      status: candidate.status,
+    };
+  }
+
+  private getConflictCode(error: ConflictException): string | undefined {
+    const response = error.getResponse();
+
+    if (typeof response === 'object' && response !== null && 'code' in response) {
+      const code = (response as { code?: unknown }).code;
+      return typeof code === 'string' ? code : undefined;
+    }
+
+    return undefined;
   }
 }

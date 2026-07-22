@@ -11,6 +11,7 @@ services:
     environment:
       NODE_ENV: development
       DB_HOST: postgres
+      DB_PORT: 5432
       DB_SYNCHRONIZE: 'true'
       REDIS_HOST: redis
     depends_on:
@@ -33,7 +34,7 @@ services:
   postgres:
     image: postgres:16-alpine
     ports:
-      - '5432:5432'
+      - '${DB_PORT:-5432}:5432'
     environment:
       POSTGRES_USER: ${DB_USERNAME:-postgres}
       POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}

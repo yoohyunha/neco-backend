@@ -29,13 +29,6 @@ export class DefaultRealtimeTurnSubmitService implements RealtimeTurnSubmitServi
 
       await this.realtimeEventSupportService.publishTurnLifecycleResult(result);
     } catch (error) {
-      if (
-        error instanceof ConflictException &&
-        getConflictCode(error) === 'TURN_NOT_IN_PROGRESS'
-      ) {
-        return;
-      }
-
       if (error instanceof ConflictException) {
         const code = getConflictCode(error) ?? 'UNKNOWN_CONFLICT';
         this.logger.warn(
